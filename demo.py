@@ -847,7 +847,10 @@ def search_openverse(query, page_size=20, page=1):
         "page_size": min(page_size, 50),
         "page": page,
     }
-    r = http_requests.get(url, params=params, timeout=15)
+    headers = {
+        "User-Agent": "CuratorAI/1.0 (https://curatorai-pictures.azurewebsites.net; dataset builder)",
+    }
+    r = http_requests.get(url, params=params, headers=headers, timeout=15)
     r.raise_for_status()
     data = r.json()
 
@@ -890,7 +893,8 @@ def collect_images(queries, total_needed):
                         all_images.append(img)
                 if page < 3:
                     time.sleep(0.3)
-            except Exception:
+            except Exception as exc:
+                print(f"[Openverse] query={query!r} page={page} error={exc}")
                 break
 
     return all_images
