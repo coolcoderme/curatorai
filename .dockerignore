@@ -3,6 +3,7 @@ __pycache__/
 *.pyo
 .env
 vars.env.txt
+visitor_count.json
 .git/
 .gitignore
 *.md

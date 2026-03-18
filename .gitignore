@@ -1,0 +1,4 @@
+vars.env.txt
+__pycache__/
+*.pyc
+visitor_count.json
