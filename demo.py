@@ -70,7 +70,15 @@ PAGE = """
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CuratorAI</title>
+  <title>CuratorAI — AI-Powered Creative Commons Image Dataset Builder</title>
+  <meta name="description" content="Build AI training datasets instantly. Describe the images you need and CuratorAI finds Creative Commons licensed pictures for you. Free to use.">
+  <meta name="keywords" content="AI dataset builder, Creative Commons images, image dataset, machine learning, training data, free images, CuratorAI">
+  <meta property="og:title" content="CuratorAI — AI Image Dataset Builder">
+  <meta property="og:description" content="Describe what training images you need — AI finds Creative Commons pictures for you. Download as ZIP.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://curatorai-pictures.azurewebsites.net">
+  <meta name="google-site-verification" content="fmIlXnV59ndnxhx-qipF4K8tOs9gmfbUeFunue9c0OU" />
+  <link rel="canonical" href="https://curatorai-pictures.azurewebsites.net/">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -632,7 +640,9 @@ ABOUT_PAGE = """
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>About &mdash; CuratorAI</title>
+  <title>About — CuratorAI | AI Image Dataset Builder</title>
+  <meta name="description" content="Learn about CuratorAI, the AI-powered tool that helps you build Creative Commons image datasets for training machine learning models.">
+  <link rel="canonical" href="https://curatorai-pictures.azurewebsites.net/about">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -1085,15 +1095,29 @@ def download():
 
 @app.route("/sitemap.xml")
 def sitemap():
-    xml = """<?xml version="1.0" encoding="UTF-8"?>
+    base = "https://curatorai-pictures.azurewebsites.net"
+    xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>http://localhost:5000/</loc>
+    <loc>{base}/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
+  <url>
+    <loc>{base}/about</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
 </urlset>"""
     return xml, 200, {"Content-Type": "application/xml"}
+
+
+@app.route("/robots.txt")
+def robots():
+    txt = """User-agent: *
+Allow: /
+Sitemap: https://curatorai-pictures.azurewebsites.net/sitemap.xml"""
+    return txt, 200, {"Content-Type": "text/plain"}
 
 
 if __name__ == "__main__":
