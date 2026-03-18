@@ -25,17 +25,16 @@ if os.path.isfile(_env_path):
             if _k:
                 os.environ[_k] = _v
 
-AZURE_OPENAI_KEY = os.environ.get("AZURE_OPENAI_KEY", "")
-AZURE_OPENAI_ENDPOINT = os.environ.get("AZURE_OPENAI_ENDPOINT", "")
-AZURE_DEPLOYMENT_NAME = os.environ.get("AZURE_DEPLOYMENT_NAME", "")
-
-ai_client = None
-if AZURE_OPENAI_KEY and AZURE_OPENAI_ENDPOINT:
-    ai_client = AzureOpenAI(
-        api_key=AZURE_OPENAI_KEY,
-        api_version="2024-10-21",
-        azure_endpoint=AZURE_OPENAI_ENDPOINT,
-    )
+def _get_ai_client():
+    key = os.environ.get("AZURE_OPENAI_KEY", "")
+    endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "")
+    if key and endpoint:
+        return AzureOpenAI(
+            api_key=key,
+            api_version="2024-10-21",
+            azure_endpoint=endpoint,
+        )
+    return None
 
 app = Flask(__name__)
 
@@ -798,8 +797,12 @@ ABOUT_PAGE = """
 # AI: generate search queries using OpenAI (GPT-4o)
 # ---------------------------------------------------------------------------
 def ai_generate_queries(description, num_images):
-    response = ai_client.chat.completions.create(
-        model=AZURE_DEPLOYMENT_NAME,
+    client = _get_ai_client()
+    if not client:
+        raise RuntimeError("Azure OpenAI not configured")
+    deploy = os.environ.get("AZURE_DEPLOYMENT_NAME", "")
+    response = client.chat.completions.create(
+        model=deploy,
         response_format={"type": "json_object"},
         messages=[
             {
@@ -912,10 +915,10 @@ def home():
     num_images = 20
     images_json = ""
 
-    if not AZURE_OPENAI_KEY or not AZURE_OPENAI_ENDPOINT:
-        error = "Missing AZURE_OPENAI_KEY or AZURE_OPENAI_ENDPOINT in vars.env.txt"
-    elif not AZURE_DEPLOYMENT_NAME:
-        error = "Missing AZURE_DEPLOYMENT_NAME in vars.env.txt"
+    if not os.environ.get("AZURE_OPENAI_KEY") or not os.environ.get("AZURE_OPENAI_ENDPOINT"):
+        error = "Missing AZURE_OPENAI_KEY or AZURE_OPENAI_ENDPOINT"
+    elif not os.environ.get("AZURE_DEPLOYMENT_NAME"):
+        error = "Missing AZURE_DEPLOYMENT_NAME"
 
     if request.method == "POST" and not error:
         description = request.form.get("description", "").strip()
