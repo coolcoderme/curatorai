@@ -842,7 +842,36 @@ def ai_generate_queries(description, num_images):
 # ---------------------------------------------------------------------------
 # Openverse: find CC-licensed images (free, no API key needed)
 # ---------------------------------------------------------------------------
+OPENVERSE_CLIENT_ID = "YvezdqGogM4j6FB8R1F59hfbDm01TBZorPhKqcjB"
+OPENVERSE_CLIENT_SECRET = "RCU9m4vryjJvWF0HeiCstCYUOvdHDV6l7k5OCyxMrRNCco5FdGxjl5qLncUUD6u0igFzAmcvH9ZFGWEDB9gXA1v89AaVjf9YMFifjhGqHwMqcT6ZJ2farXw47fFv6Qhy"
+_ov_token = {"access_token": None, "expires_at": 0}
+_ov_token_lock = threading.Lock()
+
+
+def _get_openverse_token():
+    """Fetch or refresh the Openverse OAuth token."""
+    now = time.time()
+    with _ov_token_lock:
+        if _ov_token["access_token"] and now < _ov_token["expires_at"] - 60:
+            return _ov_token["access_token"]
+        r = http_requests.post(
+            "https://api.openverse.org/v1/auth_tokens/token/",
+            data={
+                "client_id": OPENVERSE_CLIENT_ID,
+                "client_secret": OPENVERSE_CLIENT_SECRET,
+                "grant_type": "client_credentials",
+            },
+            timeout=10,
+        )
+        r.raise_for_status()
+        data = r.json()
+        _ov_token["access_token"] = data["access_token"]
+        _ov_token["expires_at"] = now + data.get("expires_in", 43200)
+        return _ov_token["access_token"]
+
+
 def search_openverse(query, page_size=20, page=1):
+    token = _get_openverse_token()
     url = "https://api.openverse.org/v1/images/"
     params = {
         "q": query,
@@ -851,7 +880,8 @@ def search_openverse(query, page_size=20, page=1):
         "page": page,
     }
     headers = {
-        "User-Agent": "CuratorAI/1.0 (https://curatorai-pictures.azurewebsites.net; dataset builder)",
+        "User-Agent": "CuratorAI/1.0 (https://curatorai-pictures.azurewebsites.net)",
+        "Authorization": f"Bearer {token}",
     }
     r = http_requests.get(url, params=params, headers=headers, timeout=15)
     r.raise_for_status()
