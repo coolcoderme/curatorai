@@ -1,6 +1,7 @@
 import os
 import io
 import json
+import time
 import zipfile
 import threading
 
@@ -867,17 +868,30 @@ def collect_images(queries, total_needed):
     all_images = []
     seen_urls = set()
 
-    for query in queries:
+    for i, query in enumerate(queries):
         if len(all_images) >= total_needed:
             break
-        try:
-            results = search_openverse(query, page_size=min(total_needed, 50))
-            for img in results:
-                if img["url"] not in seen_urls and len(all_images) < total_needed:
-                    seen_urls.add(img["url"])
-                    all_images.append(img)
-        except Exception:
-            continue
+        if i > 0:
+            time.sleep(1.5)
+
+        remaining = total_needed - len(all_images)
+        page_size = min(remaining, 20)
+
+        for page in range(1, 4):
+            if len(all_images) >= total_needed:
+                break
+            try:
+                results = search_openverse(query, page_size=page_size, page=page)
+                if not results:
+                    break
+                for img in results:
+                    if img["url"] not in seen_urls and len(all_images) < total_needed:
+                        seen_urls.add(img["url"])
+                        all_images.append(img)
+                if page < 3:
+                    time.sleep(1)
+            except Exception:
+                break
 
     return all_images
 
