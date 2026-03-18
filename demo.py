@@ -2,6 +2,7 @@ import os
 import io
 import json
 import zipfile
+import threading
 
 import requests as http_requests
 from flask import Flask, request, render_template_string, send_file
@@ -9,24 +10,19 @@ from openai import AzureOpenAI
 
 
 # ---------------------------------------------------------------------------
-# Load environment variables from vars.env.txt
+# Local dev only: load vars.env.txt if it exists (ignored on Azure)
 # ---------------------------------------------------------------------------
-def _load_dotenv(path=".env"):
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            for raw in f:
-                line = raw.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                k, v = line.split("=", 1)
-                k, v = k.strip(), v.strip().strip('"').strip("'")
-                if k:
-                    os.environ[k] = v
-    except FileNotFoundError:
-        pass
-
-
-_load_dotenv("vars.env.txt")
+_env_path = os.path.join(os.path.dirname(__file__), "vars.env.txt")
+if os.path.isfile(_env_path):
+    with open(_env_path, "r", encoding="utf-8") as _f:
+        for _raw in _f:
+            _line = _raw.strip()
+            if not _line or _line.startswith("#") or "=" not in _line:
+                continue
+            _k, _v = _line.split("=", 1)
+            _k, _v = _k.strip(), _v.strip().strip('"').strip("'")
+            if _k:
+                os.environ[_k] = _v
 
 AZURE_OPENAI_KEY = os.environ.get("AZURE_OPENAI_KEY", "")
 AZURE_OPENAI_ENDPOINT = os.environ.get("AZURE_OPENAI_ENDPOINT", "")
@@ -41,6 +37,28 @@ if AZURE_OPENAI_KEY and AZURE_OPENAI_ENDPOINT:
     )
 
 app = Flask(__name__)
+
+# ---------------------------------------------------------------------------
+# Persistent visitor counter (thread-safe, file-backed)
+# ---------------------------------------------------------------------------
+_counter_path = os.path.join(os.path.dirname(__file__), "visitor_count.json")
+_counter_lock = threading.Lock()
+
+
+def _read_counter():
+    try:
+        with open(_counter_path, "r") as f:
+            return json.load(f).get("count", 0)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return 0
+
+
+def _increment_counter():
+    with _counter_lock:
+        count = _read_counter() + 1
+        with open(_counter_path, "w") as f:
+            json.dump({"count": count}, f)
+        return count
 
 
 # ---------------------------------------------------------------------------
@@ -217,6 +235,69 @@ PAGE = """
       padding: 40px 0;
     }
 
+    /* Visitor counter */
+    .visitor-counter {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      z-index: 100;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 8px 14px;
+      backdrop-filter: blur(8px);
+      font-size: 0.75rem;
+      color: #9ca3af;
+    }
+    .visitor-counter span { color: #a78bfa; font-weight: 600; }
+
+    /* Image card with checkbox */
+    .image-card {
+      position: relative;
+      cursor: pointer;
+    }
+    .image-card input[type="checkbox"] {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 22px;
+      height: 22px;
+      accent-color: #7c3aed;
+      cursor: pointer;
+      z-index: 2;
+    }
+    .image-card.deselected img {
+      opacity: 0.35;
+      filter: grayscale(0.6);
+    }
+
+    .selection-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+      padding: 10px 16px;
+      background: rgba(167,139,250,0.1);
+      border: 1px solid rgba(167,139,250,0.2);
+      border-radius: 10px;
+      font-size: 0.85rem;
+      color: #c4b5fd;
+    }
+    .selection-bar .count { font-weight: 700; }
+    .selection-bar button {
+      background: none;
+      border: 1px solid rgba(167,139,250,0.3);
+      color: #a78bfa;
+      padding: 4px 12px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s;
+    }
+    .selection-bar button:hover { background: rgba(167,139,250,0.15); }
+
     .support {
       position: fixed;
       top: 20px;
@@ -306,6 +387,56 @@ PAGE = """
       font-size: 0.8rem;
       font-weight: 400;
     }
+
+    /* Lightbox */
+    .lightbox {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.88);
+      backdrop-filter: blur(8px);
+      z-index: 10000;
+      align-items: center;
+      justify-content: center;
+      cursor: zoom-out;
+    }
+    .lightbox.active { display: flex; }
+    .lightbox img {
+      max-width: 90vw;
+      max-height: 85vh;
+      border-radius: 12px;
+      box-shadow: 0 12px 48px rgba(0,0,0,0.6);
+      object-fit: contain;
+    }
+    .lightbox-title {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #d1d5db;
+      font-size: 0.85rem;
+      background: rgba(0,0,0,0.5);
+      padding: 6px 16px;
+      border-radius: 8px;
+      max-width: 80vw;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .lightbox-close {
+      position: absolute;
+      top: 20px;
+      right: 24px;
+      background: none;
+      border: none;
+      color: #9ca3af;
+      font-size: 2rem;
+      cursor: pointer;
+      line-height: 1;
+      transition: color 0.2s;
+    }
+    .lightbox-close:hover { color: #fff; }
   </style>
 </head>
 <body>
@@ -313,6 +444,16 @@ PAGE = """
     <div class="spinner"></div>
     <p id="loadingText">Searching for images...</p>
     <span class="subtext">This may take a few seconds</span>
+  </div>
+
+  <div class="lightbox" id="lightbox" onclick="closeLightbox()">
+    <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+    <img id="lightboxImg" src="" alt="" />
+    <div class="lightbox-title" id="lightboxTitle"></div>
+  </div>
+
+  <div class="visitor-counter">
+    Visitors: <span>{{ visitor_count }}</span>
   </div>
 
   <div class="support">
@@ -365,10 +506,10 @@ PAGE = """
       <div class="results-header">
         <div>
           <h2 style="font-size:1.2rem;">Found {{ images|length }} image{{ "s" if images|length != 1 }}</h2>
-          <div class="results-count">Creative Commons licensed &middot; click Download to get a ZIP</div>
+          <div class="results-count">Creative Commons licensed &middot; uncheck images you don't want, then download</div>
         </div>
-        <form method="post" action="/download">
-          <input type="hidden" name="urls" value="{{ images_json }}" />
+        <form method="post" action="/download" id="downloadForm">
+          <input type="hidden" name="urls" id="selectedUrls" value="{{ images_json }}" />
           <input type="hidden" name="description" value="{{ description }}" />
           <button type="submit" class="btn btn-success">
             <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
@@ -379,9 +520,21 @@ PAGE = """
         </form>
       </div>
 
+      <div class="selection-bar">
+        <div><span class="count" id="selectedCount">{{ images|length }}</span> of {{ images|length }} selected</div>
+        <div>
+          <button type="button" onclick="toggleAll(true)">Select all</button>
+          <button type="button" onclick="toggleAll(false)">Deselect all</button>
+        </div>
+      </div>
+
       <div class="image-grid">
         {% for img in images %}
-        <img src="{{ img.thumb }}" alt="{{ img.title }}" title="{{ img.title }}" loading="lazy" />
+        <div class="image-card" data-url="{{ img.url }}">
+          <input type="checkbox" checked onchange="updateSelection()" />
+          <img src="{{ img.thumb }}" alt="{{ img.title }}" title="{{ img.title }}" loading="lazy"
+               onclick="openLightbox('{{ img.url }}', '{{ img.title|e }}')" />
+        </div>
         {% endfor %}
       </div>
 
@@ -408,6 +561,47 @@ PAGE = """
   </div>
 
   <script>
+    function openLightbox(url, title) {
+      var lb = document.getElementById('lightbox');
+      document.getElementById('lightboxImg').src = url;
+      document.getElementById('lightboxImg').alt = title;
+      document.getElementById('lightboxTitle').textContent = title;
+      lb.classList.add('active');
+    }
+    function closeLightbox() {
+      document.getElementById('lightbox').classList.remove('active');
+      document.getElementById('lightboxImg').src = '';
+    }
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeLightbox();
+    });
+
+    function updateSelection() {
+      var cards = document.querySelectorAll('.image-card');
+      var urls = [];
+      var total = cards.length;
+      cards.forEach(function(card) {
+        var cb = card.querySelector('input[type="checkbox"]');
+        if (cb.checked) {
+          urls.push(card.dataset.url);
+          card.classList.remove('deselected');
+        } else {
+          card.classList.add('deselected');
+        }
+      });
+      var countEl = document.getElementById('selectedCount');
+      if (countEl) countEl.textContent = urls.length;
+      var urlsInput = document.getElementById('selectedUrls');
+      if (urlsInput) urlsInput.value = JSON.stringify(urls);
+    }
+
+    function toggleAll(checked) {
+      document.querySelectorAll('.image-card input[type="checkbox"]').forEach(function(cb) {
+        cb.checked = checked;
+      });
+      updateSelection();
+    }
+
     document.querySelectorAll('form').forEach(function(form) {
       form.addEventListener('submit', function() {
         var overlay = document.getElementById('loadingOverlay');
@@ -415,7 +609,6 @@ PAGE = """
         if (form.action.includes('/download')) {
           text.textContent = 'Downloading and zipping images...';
           overlay.classList.add('active');
-          // Hide after a short delay since downloads don't reload the page
           setTimeout(function() {
             overlay.classList.remove('active');
           }, 3000);
@@ -730,6 +923,8 @@ def home():
             except Exception as e:
                 error = f"Error: {e}"
 
+    visitor_count = _increment_counter() if request.method == "GET" else _read_counter()
+
     return render_template_string(
         PAGE,
         error=error,
@@ -740,6 +935,7 @@ def home():
         num_images=num_images,
         request_method=request.method,
         active_page="home",
+        visitor_count=visitor_count,
     )
 
 
