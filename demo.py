@@ -965,6 +965,42 @@ def about():
     return render_template_string(ABOUT_PAGE)
 
 
+@app.route("/debug")
+def debug_check():
+    import traceback
+    out = []
+    out.append(f"AZURE_OPENAI_KEY set: {bool(os.environ.get('AZURE_OPENAI_KEY'))}")
+    out.append(f"AZURE_OPENAI_ENDPOINT set: {bool(os.environ.get('AZURE_OPENAI_ENDPOINT'))}")
+    out.append(f"AZURE_DEPLOYMENT_NAME: {os.environ.get('AZURE_DEPLOYMENT_NAME', '(missing)')}")
+
+    out.append("\n--- Testing AI ---")
+    try:
+        result = ai_generate_queries("dogs", 5)
+        queries = result.get("queries", [])
+        out.append(f"AI queries: {queries}")
+    except Exception as e:
+        out.append(f"AI error: {e}\n{traceback.format_exc()}")
+        return "<pre>" + "\n".join(out) + "</pre>"
+
+    out.append("\n--- Testing Openverse ---")
+    try:
+        imgs = search_openverse("dogs", page_size=3)
+        out.append(f"Openverse returned {len(imgs)} results")
+        for img in imgs:
+            out.append(f"  - {img['title']}: {img['url'][:80]}")
+    except Exception as e:
+        out.append(f"Openverse error: {e}\n{traceback.format_exc()}")
+
+    out.append("\n--- Testing collect_images ---")
+    try:
+        all_imgs = collect_images(queries[:2], 5)
+        out.append(f"collect_images returned {len(all_imgs)} results")
+    except Exception as e:
+        out.append(f"collect_images error: {e}\n{traceback.format_exc()}")
+
+    return "<pre>" + "\n".join(out) + "</pre>"
+
+
 @app.route("/download", methods=["POST"])
 def download():
     """Download all found images and send them as a ZIP."""
