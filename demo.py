@@ -872,7 +872,7 @@ def collect_images(queries, total_needed):
         if len(all_images) >= total_needed:
             break
         if i > 0:
-            time.sleep(1.5)
+            time.sleep(0.3)
 
         remaining = total_needed - len(all_images)
         page_size = min(remaining, 20)
@@ -889,7 +889,7 @@ def collect_images(queries, total_needed):
                         seen_urls.add(img["url"])
                         all_images.append(img)
                 if page < 3:
-                    time.sleep(1)
+                    time.sleep(0.3)
             except Exception:
                 break
 
