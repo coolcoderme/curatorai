@@ -754,9 +754,17 @@ ABOUT_PAGE = """
       font-size: 0.75rem;
       color: #4b5563;
     }
+    .visitor-counter {
+      position: fixed; top: 20px; left: 20px; z-index: 100;
+      background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px; padding: 8px 14px; backdrop-filter: blur(8px);
+      font-size: 0.75rem; color: #9ca3af;
+    }
+    .visitor-counter span { color: #a78bfa; font-weight: 600; }
   </style>
 </head>
 <body>
+  <div class="visitor-counter">Visitors: <span>{{ visitor_count }}</span></div>
   <div class="support">
     <a href="https://ko-fi.com/coolcoderme" target="_blank" rel="noopener" class="btn btn-kofi">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -1072,10 +1080,14 @@ TRAIN_PAGE = """
       </div>
 
       <div id="datasetOverview" class="card hidden">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
           <h2 style="margin-bottom:0">Dataset Overview</h2>
-          <button class="btn btn-primary" onclick="goToStep2()" id="continueBtn" disabled>Continue to Training</button>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-success" onclick="downloadDatasetZip()" id="downloadDatasetBtn" type="button">Download dataset ZIP</button>
+            <button class="btn btn-primary" onclick="goToStep2()" id="continueBtn" disabled>Continue to Training</button>
+          </div>
         </div>
+        <p class="status-msg" style="margin-bottom:12px">Download saves all images or audio files in your dataset (same idea as Home &mdash; train locally without re-searching).</p>
         <div id="datasetBuckets"></div>
       </div>
     </div>
@@ -1127,6 +1139,15 @@ TRAIN_PAGE = """
           <button class="btn btn-success" onclick="downloadClassificationModel()">Download Model (TF.js)</button>
           <span class="status-msg" style="margin-left:12px">Includes a Python script to convert to TFLite</span>
         </div>
+        <div id="quickTestSection" class="hidden" style="margin-top:24px;padding-top:20px;border-top:1px solid rgba(255,255,255,0.1)">
+          <h3 style="color:#c4b5fd;margin-bottom:10px;font-size:1.05rem">Quick test</h3>
+          <p class="status-msg" style="margin-bottom:12px" id="quickTestHint">Upload a file to see predicted class and confidence.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+            <input type="file" id="quickTestFile" accept="image/*,audio/*" style="max-width:280px;color:#9ca3af" />
+            <button class="btn btn-primary" onclick="runQuickTest()" id="quickTestBtn" type="button">Predict</button>
+          </div>
+          <div id="quickTestResult" class="status-msg" style="margin-top:14px;font-size:0.95rem;color:#c4b5fd"></div>
+        </div>
       </div>
     </div>
 
@@ -1172,6 +1193,7 @@ const dataset = {};
 let searchResults = [];
 let currentStep = 1;
 let mediaType = 'image';
+let trainingWasAudio = false;
 
 function setMediaType(type) {
   mediaType = type;
@@ -1392,6 +1414,13 @@ async function trainModel() {
   btn.disabled = true;
   document.getElementById('trainingProgress').classList.remove('hidden');
   document.getElementById('downloadSection').classList.add('hidden');
+  document.getElementById('quickTestSection').classList.add('hidden');
+  trainingWasAudio = false;
+  const fk = keys[0];
+  if (fk && dataset[fk][0]) {
+    const it = dataset[fk][0];
+    trainingWasAudio = (it.source === 'openverse' || it.source === 'freesound');
+  }
   const log = document.getElementById('trainLog');
   log.innerHTML = '';
   function addLog(msg) { log.innerHTML += msg + '\\n'; log.scrollTop = log.scrollHeight; }
@@ -1474,6 +1503,11 @@ async function trainModel() {
     trainedModel = model;
     addLog('Training complete!');
     document.getElementById('downloadSection').classList.remove('hidden');
+    document.getElementById('quickTestSection').classList.remove('hidden');
+    document.getElementById('quickTestHint').textContent = trainingWasAudio
+      ? 'Upload an audio file (e.g. mp3, wav, ogg) to see predicted class.'
+      : 'Upload an image file (jpg, png, gif, webp) to see predicted class.';
+    document.getElementById('quickTestResult').textContent = '';
   } catch(e) {
     addLog('ERROR: ' + e.message);
   } finally {
@@ -1494,8 +1528,13 @@ function loadImageEl(url) {
 async function audioToSpectrogram(url) {
   const resp = await fetch('/api/proxy-audio?url=' + encodeURIComponent(url));
   const arrayBuf = await resp.arrayBuffer();
+  return await audioBufferToSpectrogram(arrayBuf);
+}
+
+async function audioBufferToSpectrogram(arrayBuf) {
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)({sampleRate: 22050});
-  const audioBuf = await audioCtx.decodeAudioData(arrayBuf);
+  const copy = arrayBuf.slice(0);
+  const audioBuf = await audioCtx.decodeAudioData(copy);
   const samples = audioBuf.getChannelData(0);
   const maxSamples = 22050 * 4;
   const data = samples.length > maxSamples ? samples.slice(0, maxSamples) : samples;
@@ -1545,6 +1584,83 @@ async function audioToSpectrogram(url) {
   sctx.putImageData(imgData, 0, 0);
   audioCtx.close();
   return specCanvas;
+}
+
+async function downloadDatasetZip() {
+  const keys = Object.keys(dataset);
+  if (!keys.length) { alert('Add at least one class first.'); return; }
+  const zip = new JSZip();
+  let n = 0;
+  for (const cls of keys) {
+    const safeDir = cls.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 40) || 'class';
+    for (let i = 0; i < dataset[cls].length; i++) {
+      const item = dataset[cls][i];
+      const isAudio = item.source === 'openverse' || item.source === 'freesound';
+      try {
+        const proxy = isAudio
+          ? '/api/proxy-audio?url=' + encodeURIComponent(item.url)
+          : '/api/proxy-image?url=' + encodeURIComponent(item.url);
+        const resp = await fetch(proxy);
+        if (!resp.ok) continue;
+        const blob = await resp.blob();
+        let ext = '.bin';
+        const u = (item.url || '').toLowerCase();
+        if (isAudio) {
+          ext = u.includes('.mp3') ? '.mp3' : u.includes('.ogg') ? '.ogg' : u.includes('.wav') ? '.wav' : '.mp3';
+        } else {
+          ext = u.includes('.png') ? '.png' : u.includes('.gif') ? '.gif' : u.includes('.webp') ? '.webp' : '.jpg';
+        }
+        zip.file(safeDir + '/' + safeDir + '_' + String(i+1).padStart(3,'0') + ext, blob);
+        n++;
+      } catch(e) { console.warn(e); }
+    }
+  }
+  if (!n) { alert('Could not download any files. Check your network.'); return; }
+  const out = await zip.generateAsync({type: 'blob'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(out);
+  a.download = 'curatorai_dataset.zip';
+  a.click();
+}
+
+async function runQuickTest() {
+  const fileInput = document.getElementById('quickTestFile');
+  const file = fileInput.files && fileInput.files[0];
+  const out = document.getElementById('quickTestResult');
+  out.textContent = '';
+  if (!trainedModel || !mobilenetModel) { out.textContent = 'Train a model first.'; return; }
+  if (!file) { out.textContent = 'Choose an image or audio file.'; return; }
+  document.getElementById('quickTestBtn').disabled = true;
+  try {
+    let inputTensor;
+    if (trainingWasAudio) {
+      const buf = await file.arrayBuffer();
+      const canvas = await audioBufferToSpectrogram(buf);
+      inputTensor = mobilenetModel.infer(canvas, true);
+    } else {
+      const img = new Image();
+      const objUrl = URL.createObjectURL(file);
+      await new Promise((res, rej) => {
+        img.onload = () => res();
+        img.onerror = () => rej(new Error('Could not load image — use jpg, png, gif, or webp'));
+        img.src = objUrl;
+      });
+      inputTensor = mobilenetModel.infer(img, true);
+      URL.revokeObjectURL(objUrl);
+    }
+    const pred = trainedModel.predict(inputTensor);
+    const data = await pred.data();
+    inputTensor.dispose(); pred.dispose();
+    let best = 0, bestP = 0;
+    for (let i = 0; i < data.length; i++) {
+      if (data[i] > bestP) { bestP = data[i]; best = i; }
+    }
+    out.innerHTML = '<strong>' + classNames[best] + '</strong> &mdash; ' + (bestP * 100).toFixed(1) + '% confidence';
+  } catch(e) {
+    out.textContent = 'Error: ' + e.message;
+  } finally {
+    document.getElementById('quickTestBtn').disabled = false;
+  }
 }
 
 function fft(re, im, n) {
@@ -2178,7 +2294,8 @@ def home():
 
 @app.route("/about")
 def about():
-    return render_template_string(ABOUT_PAGE)
+    visitor_count = _increment_counter()
+    return render_template_string(ABOUT_PAGE, visitor_count=visitor_count)
 
 
 @app.route("/train")
