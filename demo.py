@@ -6,7 +6,7 @@ import zipfile
 import threading
 
 import requests as http_requests
-from flask import Flask, request, render_template_string, send_file
+from flask import Flask, request, render_template_string, send_file, jsonify, Response
 from openai import AzureOpenAI
 
 
@@ -41,7 +41,10 @@ app = Flask(__name__)
 # ---------------------------------------------------------------------------
 # Persistent visitor counter (thread-safe, file-backed)
 # ---------------------------------------------------------------------------
-_counter_path = os.path.join(os.path.dirname(__file__), "visitor_count.json")
+if os.environ.get("WEBSITE_SITE_NAME"):
+    _counter_path = "/home/visitor_count.json"
+else:
+    _counter_path = os.path.join(os.path.dirname(__file__), "visitor_count.json")
 _counter_lock = threading.Lock()
 
 
@@ -480,6 +483,7 @@ PAGE = """
 
     <div class="nav">
       <a href="/" class="{{ 'active' if active_page == 'home' }}">Home</a>
+      <a href="/train" class="{{ 'active' if active_page == 'train' }}">Train</a>
       <a href="/about" class="{{ 'active' if active_page == 'about' }}">About</a>
     </div>
 
@@ -770,6 +774,7 @@ ABOUT_PAGE = """
 
     <div class="nav">
       <a href="/">Home</a>
+      <a href="/train">Train</a>
       <a href="/about" class="active">About</a>
     </div>
 
@@ -798,6 +803,952 @@ ABOUT_PAGE = """
 
     <div class="footer">Built with Flask, Azure OpenAI &amp; Openverse</div>
   </div>
+</body>
+</html>
+"""
+
+
+TRAIN_PAGE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Train — CuratorAI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      color: #e0e0e0;
+      min-height: 100vh;
+      padding: 32px 24px;
+    }
+    .container { max-width: 1100px; margin: 0 auto; }
+    .header { text-align: center; margin-bottom: 40px; }
+    .header h1 {
+      font-size: 2.2rem; font-weight: 700;
+      background: linear-gradient(90deg, #a78bfa, #60a5fa, #34d399);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+    .header p { color: #9ca3af; font-size: 0.95rem; }
+    .nav { display: flex; justify-content: center; gap: 24px; margin-bottom: 28px; }
+    .nav a {
+      color: #9ca3af; text-decoration: none; font-size: 0.9rem; font-weight: 500;
+      padding: 6px 0; border-bottom: 2px solid transparent; transition: color 0.2s, border-color 0.2s;
+    }
+    .nav a:hover, .nav a.active { color: #c4b5fd; border-bottom-color: #a78bfa; }
+    .card {
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px; padding: 32px; backdrop-filter: blur(12px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3); margin-bottom: 24px;
+    }
+    .card h2 { font-size: 1.2rem; margin-bottom: 16px; color: #c4b5fd; }
+    label { display: block; font-weight: 600; margin-bottom: 8px; font-size: 0.9rem; color: #c4b5fd; }
+    input[type="text"], input[type="number"] {
+      width: 100%; padding: 12px 16px; border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 12px; background: rgba(255,255,255,0.07); color: #f0f0f0;
+      font-size: 1rem; font-family: inherit; outline: none; transition: border-color 0.2s;
+    }
+    input:focus { border-color: #a78bfa; box-shadow: 0 0 0 3px rgba(167,139,250,0.25); }
+    input[type="number"] { max-width: 160px; }
+    .form-row { margin-bottom: 16px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 200px 160px; gap: 12px; align-items: end; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; border: none;
+      border-radius: 12px; font-size: 0.9rem; font-weight: 600; font-family: inherit;
+      cursor: pointer; transition: transform 0.15s, box-shadow 0.2s;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .btn-primary { background: linear-gradient(135deg, #7c3aed, #6366f1); color: #fff; }
+    .btn-success { background: linear-gradient(135deg, #059669, #10b981); color: #fff; }
+    .btn-danger { background: linear-gradient(135deg, #dc2626, #ef4444); color: #fff; padding: 6px 12px; font-size: 0.8rem; }
+    .btn-outline {
+      background: transparent; border: 1px solid rgba(167,139,250,0.3); color: #a78bfa;
+      padding: 8px 16px; font-size: 0.85rem;
+    }
+    .btn-outline:hover { background: rgba(167,139,250,0.1); }
+
+    .steps {
+      display: flex; justify-content: center; gap: 8px; margin-bottom: 28px; font-size: 0.85rem;
+    }
+    .step { padding: 6px 16px; border-radius: 20px; color: #6b7280; background: rgba(255,255,255,0.05); }
+    .step.active { background: rgba(167,139,250,0.2); color: #c4b5fd; font-weight: 600; }
+
+    .class-bucket { margin-bottom: 20px; }
+    .class-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 10px; padding: 8px 12px; background: rgba(167,139,250,0.1);
+      border-radius: 10px;
+    }
+    .class-header h3 { font-size: 0.95rem; color: #c4b5fd; }
+    .class-header span { font-size: 0.8rem; color: #9ca3af; }
+    .thumb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; }
+    .thumb-item { position: relative; }
+    .thumb-item img {
+      width: 100%; height: 100px; object-fit: cover; border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.1); cursor: pointer;
+    }
+    .thumb-item .del-btn {
+      position: absolute; top: 4px; right: 4px; width: 22px; height: 22px;
+      background: rgba(220,38,38,0.85); color: #fff; border: none; border-radius: 50%;
+      font-size: 14px; line-height: 22px; text-align: center; cursor: pointer;
+      opacity: 0; transition: opacity 0.2s;
+    }
+    .thumb-item:hover .del-btn { opacity: 1; }
+
+    .search-results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin: 16px 0; }
+    .sr-item { position: relative; cursor: pointer; }
+    .sr-item img {
+      width: 100%; height: 120px; object-fit: cover; border-radius: 8px;
+      border: 2px solid transparent; transition: border-color 0.2s, opacity 0.2s;
+    }
+    .sr-item.selected img { border-color: #a78bfa; }
+    .sr-item.deselected img { opacity: 0.3; border-color: transparent; }
+    .sr-item input[type="checkbox"] {
+      position: absolute; top: 6px; right: 6px; width: 20px; height: 20px;
+      accent-color: #7c3aed; cursor: pointer; z-index: 2;
+    }
+
+    .mode-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .mode-card {
+      padding: 24px; border-radius: 16px; border: 2px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.04); cursor: pointer; text-align: center;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .mode-card:hover { border-color: rgba(167,139,250,0.4); background: rgba(167,139,250,0.08); }
+    .mode-card h3 { color: #c4b5fd; margin-bottom: 8px; }
+    .mode-card p { color: #9ca3af; font-size: 0.85rem; }
+
+    .progress-section { margin-top: 20px; }
+    .progress-bar-bg {
+      width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%; background: linear-gradient(90deg, #7c3aed, #34d399);
+      border-radius: 4px; transition: width 0.3s;
+    }
+    .metrics { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 16px; }
+    .metric-box {
+      text-align: center; padding: 12px; background: rgba(255,255,255,0.05); border-radius: 10px;
+    }
+    .metric-box .val { font-size: 1.4rem; font-weight: 700; color: #a78bfa; }
+    .metric-box .lbl { font-size: 0.75rem; color: #6b7280; margin-top: 4px; }
+    .log-area {
+      margin-top: 16px; max-height: 120px; overflow-y: auto; font-size: 0.8rem;
+      color: #9ca3af; background: rgba(0,0,0,0.2); border-radius: 8px; padding: 12px;
+      font-family: monospace;
+    }
+
+    .annot-container { display: flex; gap: 16px; flex-wrap: wrap; }
+    .annot-canvas-wrap {
+      flex: 1; min-width: 500px; position: relative;
+      background: rgba(0,0,0,0.3); border-radius: 12px; overflow: hidden;
+    }
+    .annot-canvas-wrap canvas { display: block; cursor: crosshair; }
+    .annot-sidebar { width: 280px; flex-shrink: 0; }
+    .annot-toolbar {
+      display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap;
+    }
+    .annot-toolbar .btn { padding: 8px 12px; font-size: 0.8rem; }
+    .annot-toolbar .btn.active-tool { background: rgba(167,139,250,0.3); border-color: #a78bfa; }
+    .box-list { max-height: 300px; overflow-y: auto; }
+    .box-item {
+      display: flex; align-items: center; gap: 8px; padding: 6px 10px; margin-bottom: 4px;
+      background: rgba(255,255,255,0.05); border-radius: 8px; font-size: 0.8rem;
+    }
+    .box-item.selected { background: rgba(167,139,250,0.15); border: 1px solid rgba(167,139,250,0.3); }
+    .box-item select {
+      flex: 1; padding: 4px 8px; background: rgba(255,255,255,0.1); color: #e0e0e0;
+      border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; font-size: 0.8rem;
+    }
+    .img-nav { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .img-nav .btn { padding: 6px 14px; }
+    .img-nav span { color: #9ca3af; font-size: 0.85rem; }
+
+    .support { position: fixed; top: 20px; right: 20px; z-index: 100; }
+    .btn-kofi {
+      display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border: none;
+      border-radius: 12px; background: linear-gradient(135deg, #ff5e5b, #ff9966); color: #fff;
+      font-size: 0.85rem; font-weight: 600; font-family: inherit; text-decoration: none;
+      cursor: pointer; transition: transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .btn-kofi:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(255,94,91,0.45); }
+    .footer { text-align: center; margin-top: 16px; font-size: 0.75rem; color: #4b5563; }
+    .hidden { display: none !important; }
+    .status-msg { color: #9ca3af; font-size: 0.85rem; margin: 12px 0; }
+    .visitor-counter {
+      position: fixed; top: 20px; left: 20px; z-index: 100;
+      background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px; padding: 8px 14px; backdrop-filter: blur(8px);
+      font-size: 0.75rem; color: #9ca3af;
+    }
+    .visitor-counter span { color: #a78bfa; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="visitor-counter">Visitors: <span>{{ visitor_count }}</span></div>
+  <div class="support">
+    <a href="https://ko-fi.com/coolcoderme" target="_blank" rel="noopener" class="btn-kofi">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M23.881 8.948c-.773-4.085-4.859-4.593-4.859-4.593H.723c-.604 0-.679.798-.679.798s-.082 7.324-.022 11.822c.164 2.424 2.586 2.672 2.586 2.672s8.267-.023 11.966-.049c2.438-.426 2.683-2.566 2.658-3.734 4.352.24 7.422-2.831 6.649-6.916zm-11.062 3.511c-1.246 1.453-4.011 3.976-4.011 3.976s-.121.119-.31.023c-.076-.057-.108-.09-.108-.09-.443-.441-3.368-3.049-4.034-3.954-.709-.965-1.041-2.7-.091-3.71.951-1.01 3.005-1.086 4.363.407 0 0 1.565-1.782 3.468-.963 1.904.82 1.832 3.011.723 4.311zm6.173.478c-.928.116-1.682.028-1.682.028V7.284h1.77s1.971.551 1.971 2.638c0 1.913-.985 2.667-2.059 3.015z"/></svg>
+      Support
+    </a>
+  </div>
+
+  <div class="container">
+    <div class="header">
+      <h1>CuratorAI</h1>
+      <p>Build datasets and train models — right in your browser</p>
+    </div>
+    <div class="nav">
+      <a href="/">Home</a>
+      <a href="/train" class="active">Train</a>
+      <a href="/about">About</a>
+    </div>
+
+    <div class="steps">
+      <div class="step active" id="step1">1. Build Dataset</div>
+      <div class="step" id="step2">2. Train / Annotate</div>
+      <div class="step" id="step3">3. Export</div>
+    </div>
+
+    <!-- ===== STEP 1: BUILD DATASET ===== -->
+    <div id="buildView">
+      <div class="card">
+        <h2>Add a Class</h2>
+        <div class="form-grid">
+          <div class="form-row">
+            <label for="className">Class name</label>
+            <input type="text" id="className" placeholder="e.g. cats" />
+          </div>
+          <div class="form-row">
+            <label for="classDesc">Description</label>
+            <input type="text" id="classDesc" placeholder="e.g. house cats indoors" />
+          </div>
+          <div class="form-row">
+            <label for="classNum">Images</label>
+            <input type="number" id="classNum" value="20" min="5" max="50" />
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="searchForClass()" id="searchBtn">Search Images</button>
+        <div id="searchStatus" class="status-msg"></div>
+      </div>
+
+      <div id="searchResultsCard" class="card hidden">
+        <h2>Search Results — <span id="srClassName"></span></h2>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span class="status-msg"><span id="srSelectedCount">0</span> selected</span>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-outline" onclick="srToggleAll(true)">Select all</button>
+            <button class="btn btn-outline" onclick="srToggleAll(false)">Deselect all</button>
+          </div>
+        </div>
+        <div id="searchResultsGrid" class="search-results-grid"></div>
+        <button class="btn btn-success" onclick="addToDataset()" style="margin-top:12px">Add Selected to Dataset</button>
+      </div>
+
+      <div id="datasetOverview" class="card hidden">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h2 style="margin-bottom:0">Dataset Overview</h2>
+          <button class="btn btn-primary" onclick="goToStep2()" id="continueBtn" disabled>Continue to Training</button>
+        </div>
+        <div id="datasetBuckets"></div>
+      </div>
+    </div>
+
+    <!-- ===== STEP 2: MODE SELECT ===== -->
+    <div id="modeView" class="hidden">
+      <div class="card">
+        <h2>Choose Training Mode</h2>
+        <div class="mode-cards">
+          <div class="mode-card" onclick="startClassification()">
+            <h3>Image Classification</h3>
+            <p>Train a model to recognize which class an image belongs to. Training runs in your browser using your GPU.</p>
+          </div>
+          <div class="mode-card" onclick="startAnnotation()">
+            <h3>Object Detection</h3>
+            <p>Draw bounding boxes around objects. Export as a YOLO-format dataset for training locally.</p>
+          </div>
+        </div>
+        <button class="btn btn-outline" onclick="goToStep1()" style="margin-top:16px">Back to Dataset</button>
+      </div>
+    </div>
+
+    <!-- ===== CLASSIFICATION VIEW ===== -->
+    <div id="classifyView" class="hidden">
+      <div class="card">
+        <h2>Classification Training</h2>
+        <div style="display:flex;gap:16px;align-items:end;margin-bottom:16px;flex-wrap:wrap">
+          <div class="form-row" style="margin-bottom:0">
+            <label for="epochs">Epochs</label>
+            <input type="number" id="epochs" value="20" min="5" max="100" />
+          </div>
+          <div class="form-row" style="margin-bottom:0">
+            <label for="lr">Learning Rate</label>
+            <input type="text" id="lr" value="0.001" />
+          </div>
+          <button class="btn btn-primary" onclick="trainModel()" id="trainBtn">Train Model</button>
+          <button class="btn btn-outline" onclick="goToStep2()">Back</button>
+        </div>
+        <div id="trainingProgress" class="progress-section hidden">
+          <div class="progress-bar-bg"><div class="progress-bar-fill" id="progBar" style="width:0%"></div></div>
+          <div class="metrics">
+            <div class="metric-box"><div class="val" id="mEpoch">0</div><div class="lbl">Epoch</div></div>
+            <div class="metric-box"><div class="val" id="mLoss">—</div><div class="lbl">Loss</div></div>
+            <div class="metric-box"><div class="val" id="mAcc">—</div><div class="lbl">Accuracy</div></div>
+          </div>
+          <div class="log-area" id="trainLog"></div>
+        </div>
+        <div id="downloadSection" class="hidden" style="margin-top:20px">
+          <button class="btn btn-success" onclick="downloadClassificationModel()">Download Model (TF.js)</button>
+          <span class="status-msg" style="margin-left:12px">Includes a Python script to convert to TFLite</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== ANNOTATION VIEW ===== -->
+    <div id="annotateView" class="hidden">
+      <div class="card">
+        <h2>Bounding Box Annotation</h2>
+        <div class="img-nav">
+          <button class="btn btn-outline" onclick="annotPrev()">Prev</button>
+          <span id="annotImgInfo">0 / 0</span>
+          <button class="btn btn-outline" onclick="annotNext()">Next</button>
+          <span style="flex:1"></span>
+          <button class="btn btn-success" onclick="exportYOLO()">Export YOLO Dataset</button>
+          <button class="btn btn-outline" onclick="goToStep2()">Back</button>
+        </div>
+        <div class="annot-container">
+          <div class="annot-canvas-wrap">
+            <canvas id="annotCanvas" width="700" height="500"></canvas>
+          </div>
+          <div class="annot-sidebar">
+            <div class="annot-toolbar">
+              <button class="btn btn-outline active-tool" id="toolDraw" onclick="setAnnotTool('draw')">Draw</button>
+              <button class="btn btn-outline" id="toolSelect" onclick="setAnnotTool('select')">Select</button>
+              <button class="btn btn-outline" onclick="annotDelete()">Delete</button>
+              <button class="btn btn-outline" onclick="annotUndo()">Undo</button>
+              <button class="btn btn-outline" onclick="annotRedo()">Redo</button>
+            </div>
+            <label>Boxes on this image:</label>
+            <div class="box-list" id="boxList"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">Built with Flask, Azure OpenAI, Openverse &amp; TensorFlow.js</div>
+  </div>
+
+<script>
+// =====================================================================
+// STATE
+// =====================================================================
+const dataset = {};
+let searchResults = [];
+let currentStep = 1;
+
+// Annotation state
+const annotations = {};
+let allImages = [];
+let annotIdx = 0;
+let annotTool = 'draw';
+let annotImg = null;
+let annotBoxes = [];
+let selectedBoxIdx = -1;
+let isDrawing = false;
+let drawStart = null;
+let isDragging = false;
+let dragOffset = {x:0,y:0};
+let isResizing = false;
+let resizeHandle = '';
+let undoStack = [];
+let redoStack = [];
+
+// Classification state
+let trainedModel = null;
+let mobilenetModel = null;
+const classNames = [];
+
+// =====================================================================
+// DATASET BUILDER
+// =====================================================================
+async function searchForClass() {
+  const name = document.getElementById('className').value.trim();
+  const desc = document.getElementById('classDesc').value.trim() || name;
+  const num = parseInt(document.getElementById('classNum').value) || 20;
+  if (!name) { alert('Enter a class name'); return; }
+
+  const btn = document.getElementById('searchBtn');
+  btn.disabled = true;
+  document.getElementById('searchStatus').textContent = 'Searching...';
+  try {
+    const resp = await fetch('/api/search', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({description: desc, num_images: Math.min(Math.max(num, 5), 50)})
+    });
+    const data = await resp.json();
+    if (data.error) { document.getElementById('searchStatus').textContent = data.error; return; }
+    searchResults = data.images.map(img => ({...img, selected: true}));
+    document.getElementById('srClassName').textContent = name;
+    renderSearchResults();
+    document.getElementById('searchResultsCard').classList.remove('hidden');
+    document.getElementById('searchStatus').textContent = '';
+  } catch(e) {
+    document.getElementById('searchStatus').textContent = 'Search failed: ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderSearchResults() {
+  const grid = document.getElementById('searchResultsGrid');
+  grid.innerHTML = '';
+  let selCount = 0;
+  searchResults.forEach((img, i) => {
+    const div = document.createElement('div');
+    div.className = 'sr-item' + (img.selected ? ' selected' : ' deselected');
+    div.innerHTML = '<input type="checkbox" ' + (img.selected ? 'checked' : '') +
+      ' onchange="srToggle(' + i + ')" /><img src="' + img.thumb + '" alt="' + (img.title||'').replace(/"/g,'') +
+      '" title="' + (img.title||'').replace(/"/g,'') + '" loading="lazy" />';
+    div.querySelector('img').onclick = function() { srToggle(i); };
+    grid.appendChild(div);
+    if (img.selected) selCount++;
+  });
+  document.getElementById('srSelectedCount').textContent = selCount;
+}
+
+function srToggle(i) {
+  searchResults[i].selected = !searchResults[i].selected;
+  renderSearchResults();
+}
+function srToggleAll(val) {
+  searchResults.forEach(img => img.selected = val);
+  renderSearchResults();
+}
+
+function addToDataset() {
+  const name = document.getElementById('className').value.trim();
+  if (!name) return;
+  const selected = searchResults.filter(img => img.selected);
+  if (!selected.length) { alert('Select at least one image'); return; }
+  if (!dataset[name]) dataset[name] = [];
+  selected.forEach(img => {
+    if (!dataset[name].find(d => d.url === img.url)) dataset[name].push(img);
+  });
+  searchResults = [];
+  document.getElementById('searchResultsCard').classList.add('hidden');
+  document.getElementById('className').value = '';
+  document.getElementById('classDesc').value = '';
+  renderDataset();
+}
+
+function renderDataset() {
+  const wrap = document.getElementById('datasetBuckets');
+  const keys = Object.keys(dataset);
+  if (!keys.length) {
+    wrap.innerHTML = '<p class="status-msg">No classes added yet.</p>';
+    document.getElementById('datasetOverview').classList.add('hidden');
+    document.getElementById('continueBtn').disabled = true;
+    return;
+  }
+  document.getElementById('datasetOverview').classList.remove('hidden');
+  document.getElementById('continueBtn').disabled = keys.length < 2;
+  wrap.innerHTML = '';
+  keys.forEach(cls => {
+    const bucket = document.createElement('div');
+    bucket.className = 'class-bucket';
+    const hdr = document.createElement('div');
+    hdr.className = 'class-header';
+    hdr.innerHTML = '<h3>' + cls + '</h3><span>' + dataset[cls].length + ' images</span>' +
+      '<button class="btn btn-danger" onclick="removeClass(\\''+cls.replace(/'/g,"\\\\'")+
+      '\\')">Remove class</button>';
+    bucket.appendChild(hdr);
+    const grid = document.createElement('div');
+    grid.className = 'thumb-grid';
+    dataset[cls].forEach((img, i) => {
+      const item = document.createElement('div');
+      item.className = 'thumb-item';
+      item.innerHTML = '<img src="'+img.thumb+'" alt="'+cls+'" />' +
+        '<button class="del-btn" onclick="removeImage(\\''+cls.replace(/'/g,"\\\\'")+
+        '\\','+i+')">&times;</button>';
+      grid.appendChild(item);
+    });
+    bucket.appendChild(grid);
+    wrap.appendChild(bucket);
+  });
+}
+
+function removeImage(cls, idx) {
+  dataset[cls].splice(idx, 1);
+  if (!dataset[cls].length) delete dataset[cls];
+  renderDataset();
+}
+function removeClass(cls) {
+  delete dataset[cls];
+  renderDataset();
+}
+
+// =====================================================================
+// STEP NAVIGATION
+// =====================================================================
+function setStep(n) {
+  currentStep = n;
+  document.querySelectorAll('.step').forEach((el,i) => el.classList.toggle('active', i===n-1));
+  document.getElementById('buildView').classList.toggle('hidden', n!==1);
+  document.getElementById('modeView').classList.toggle('hidden', n!==2);
+  document.getElementById('classifyView').classList.toggle('hidden', n!==3 || !document.getElementById('classifyView').dataset.show);
+  document.getElementById('annotateView').classList.toggle('hidden', n!==3 || !document.getElementById('annotateView').dataset.show);
+}
+function goToStep1() {
+  document.getElementById('classifyView').dataset.show = '';
+  document.getElementById('annotateView').dataset.show = '';
+  setStep(1);
+}
+function goToStep2() {
+  document.getElementById('classifyView').dataset.show = '';
+  document.getElementById('annotateView').dataset.show = '';
+  setStep(2);
+}
+
+// =====================================================================
+// CLASSIFICATION TRAINING
+// =====================================================================
+function startClassification() {
+  document.getElementById('classifyView').dataset.show = '1';
+  document.getElementById('annotateView').dataset.show = '';
+  setStep(3);
+}
+
+async function trainModel() {
+  const keys = Object.keys(dataset);
+  if (keys.length < 2) { alert('Need at least 2 classes'); return; }
+
+  const btn = document.getElementById('trainBtn');
+  btn.disabled = true;
+  document.getElementById('trainingProgress').classList.remove('hidden');
+  document.getElementById('downloadSection').classList.add('hidden');
+  const log = document.getElementById('trainLog');
+  log.innerHTML = '';
+  function addLog(msg) { log.innerHTML += msg + '\\n'; log.scrollTop = log.scrollHeight; }
+
+  const totalEpochs = parseInt(document.getElementById('epochs').value) || 20;
+  const learningRate = parseFloat(document.getElementById('lr').value) || 0.001;
+
+  try {
+    addLog('Loading MobileNet...');
+    if (!mobilenetModel) {
+      mobilenetModel = await mobilenet.load({version: 2, alpha: 1.0});
+    }
+    addLog('MobileNet loaded. Extracting features...');
+
+    classNames.length = 0;
+    keys.forEach(k => classNames.push(k));
+    const numClasses = classNames.length;
+
+    const features = [];
+    const labels = [];
+    let totalImages = 0;
+    keys.forEach(k => totalImages += dataset[k].length);
+    let processed = 0;
+
+    for (let ci = 0; ci < keys.length; ci++) {
+      const cls = keys[ci];
+      for (const img of dataset[cls]) {
+        try {
+          const imgEl = await loadImageEl(img.url);
+          const feat = mobilenetModel.infer(imgEl, true);
+          features.push(feat);
+          labels.push(ci);
+          processed++;
+          addLog('  Processed ' + processed + '/' + totalImages + ': ' + cls);
+        } catch(e) {
+          addLog('  Skipped image: ' + e.message);
+        }
+      }
+    }
+
+    if (features.length < 2) { addLog('ERROR: Not enough images loaded.'); btn.disabled = false; return; }
+
+    const xs = tf.concat(features);
+    const ys = tf.oneHot(tf.tensor1d(labels, 'int32'), numClasses);
+    features.forEach(f => f.dispose());
+
+    addLog('Building classifier (' + xs.shape[1] + ' features -> ' + numClasses + ' classes)...');
+    const model = tf.sequential();
+    model.add(tf.layers.dense({inputShape: [xs.shape[1]], units: 128, activation: 'relu'}));
+    model.add(tf.layers.dropout({rate: 0.3}));
+    model.add(tf.layers.dense({units: numClasses, activation: 'softmax'}));
+    model.compile({optimizer: tf.train.adam(learningRate), loss: 'categoricalCrossentropy', metrics: ['accuracy']});
+
+    addLog('Training for ' + totalEpochs + ' epochs...');
+    await model.fit(xs, ys, {
+      epochs: totalEpochs,
+      batchSize: 16,
+      validationSplit: 0.2,
+      shuffle: true,
+      callbacks: {
+        onEpochEnd: (epoch, logs) => {
+          const pct = ((epoch+1)/totalEpochs*100).toFixed(0);
+          document.getElementById('progBar').style.width = pct + '%';
+          document.getElementById('mEpoch').textContent = (epoch+1) + '/' + totalEpochs;
+          document.getElementById('mLoss').textContent = logs.loss.toFixed(4);
+          document.getElementById('mAcc').textContent = (logs.acc*100).toFixed(1) + '%';
+          addLog('Epoch ' + (epoch+1) + ' — loss: ' + logs.loss.toFixed(4) + '  acc: ' + (logs.acc*100).toFixed(1) + '%');
+        }
+      }
+    });
+
+    xs.dispose(); ys.dispose();
+    trainedModel = model;
+    addLog('Training complete!');
+    document.getElementById('downloadSection').classList.remove('hidden');
+  } catch(e) {
+    addLog('ERROR: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function loadImageEl(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = '/api/proxy-image?url=' + encodeURIComponent(url);
+  });
+}
+
+async function downloadClassificationModel() {
+  if (!trainedModel) return;
+  const saveResult = await trainedModel.save(tf.io.withSaveHandler(async (artifacts) => {
+    const weightData = new Uint8Array(artifacts.weightData);
+    const modelJson = {
+      modelTopology: artifacts.modelTopology,
+      weightsManifest: [{paths: ['weights.bin'], weights: artifacts.weightSpecs}],
+      format: 'layers-model', generatedBy: 'CuratorAI'
+    };
+
+    const convertScript = [
+      '# convert_to_tflite.py',
+      '# Run: pip install tensorflowjs tensorflow',
+      '# Then: python convert_to_tflite.py',
+      'import tensorflowjs as tfjs', 'import tensorflow as tf', 'import os, json',
+      'model = tfjs.converters.load_keras_model(os.path.join(".", "model.json"))',
+      'converter = tf.lite.TFLiteConverter.from_keras_model(model)',
+      'tflite = converter.convert()',
+      'with open("model.tflite", "wb") as f: f.write(tflite)',
+      'print("Saved model.tflite")'
+    ].join('\\n');
+
+    const classInfo = JSON.stringify({classes: classNames, input: 'MobileNetV2 1280-dim feature vector'}, null, 2);
+
+    const zip = new JSZip();
+    zip.file('model.json', JSON.stringify(modelJson));
+    zip.file('weights.bin', weightData);
+    zip.file('classes.json', classInfo);
+    zip.file('convert_to_tflite.py', convertScript);
+    const blob = await zip.generateAsync({type: 'blob'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'curatorai_classifier.zip';
+    a.click();
+    return {modelArtifactsInfo: {dateSaved: new Date(), modelTopologyType: 'JSON'}};
+  }));
+}
+
+// =====================================================================
+// ANNOTATION (BOUNDING BOXES)
+// =====================================================================
+function startAnnotation() {
+  document.getElementById('annotateView').dataset.show = '1';
+  document.getElementById('classifyView').dataset.show = '';
+  allImages = [];
+  Object.keys(dataset).forEach(cls => {
+    dataset[cls].forEach(img => {
+      if (!allImages.find(a => a.url === img.url)) allImages.push(img);
+    });
+  });
+  annotIdx = 0;
+  setStep(3);
+  loadAnnotImage();
+}
+
+const canvas = document.getElementById('annotCanvas');
+const ctx = canvas ? canvas.getContext('2d') : null;
+
+function loadAnnotImage() {
+  if (!allImages.length) return;
+  document.getElementById('annotImgInfo').textContent = (annotIdx+1) + ' / ' + allImages.length;
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = function() {
+    annotImg = img;
+    const maxW = 700;
+    const scale = maxW / img.naturalWidth;
+    canvas.width = maxW;
+    canvas.height = Math.round(img.naturalHeight * scale);
+    annotBoxes = annotations[allImages[annotIdx].url] || [];
+    selectedBoxIdx = -1;
+    drawCanvas();
+    renderBoxList();
+  };
+  img.src = '/api/proxy-image?url=' + encodeURIComponent(allImages[annotIdx].url);
+}
+
+function drawCanvas() {
+  if (!annotImg) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(annotImg, 0, 0, canvas.width, canvas.height);
+  annotBoxes.forEach((box, i) => {
+    const x = box.x * canvas.width, y = box.y * canvas.height;
+    const w = box.w * canvas.width, h = box.h * canvas.height;
+    ctx.strokeStyle = i === selectedBoxIdx ? '#a78bfa' : '#34d399';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, w, h);
+    ctx.fillStyle = i === selectedBoxIdx ? 'rgba(167,139,250,0.15)' : 'rgba(52,211,153,0.1)';
+    ctx.fillRect(x, y, w, h);
+    if (box.label) {
+      ctx.fillStyle = i === selectedBoxIdx ? '#a78bfa' : '#34d399';
+      ctx.font = '12px Inter, sans-serif';
+      ctx.fillText(box.label, x + 4, y - 4 > 12 ? y - 4 : y + 14);
+    }
+    if (i === selectedBoxIdx) {
+      const hs = 5;
+      ctx.fillStyle = '#a78bfa';
+      [[x,y],[x+w,y],[x,y+h],[x+w,y+h],[x+w/2,y],[x+w/2,y+h],[x,y+h/2],[x+w,y+h/2]].forEach(([hx,hy]) => {
+        ctx.fillRect(hx-hs/2, hy-hs/2, hs, hs);
+      });
+    }
+  });
+}
+
+function renderBoxList() {
+  const list = document.getElementById('boxList');
+  const classKeys = Object.keys(dataset);
+  list.innerHTML = '';
+  annotBoxes.forEach((box, i) => {
+    const item = document.createElement('div');
+    item.className = 'box-item' + (i === selectedBoxIdx ? ' selected' : '');
+    let opts = classKeys.map(c => '<option value="'+c+'"'+(box.label===c?' selected':'')+'>'+c+'</option>').join('');
+    item.innerHTML = '<span>#'+(i+1)+'</span><select onchange="setBoxLabel('+i+',this.value)">'+
+      '<option value="">(label)</option>'+opts+'</select>' +
+      '<button class="btn btn-danger" onclick="deleteBox('+i+')">&times;</button>';
+    item.onclick = function(e) { if(e.target.tagName==='DIV'||e.target.tagName==='SPAN'){selectedBoxIdx=i;drawCanvas();renderBoxList();} };
+    list.appendChild(item);
+  });
+}
+
+function setBoxLabel(i, val) { annotBoxes[i].label = val; saveAnnot(); drawCanvas(); }
+function deleteBox(i) {
+  pushUndo();
+  annotBoxes.splice(i, 1);
+  selectedBoxIdx = -1;
+  saveAnnot(); drawCanvas(); renderBoxList();
+}
+function saveAnnot() {
+  if (allImages.length) annotations[allImages[annotIdx].url] = annotBoxes;
+}
+
+function getCanvasPos(e) {
+  const r = canvas.getBoundingClientRect();
+  return {x: (e.clientX - r.left) / canvas.width, y: (e.clientY - r.top) / canvas.height};
+}
+function getHandleAt(pos) {
+  if (selectedBoxIdx < 0) return null;
+  const box = annotBoxes[selectedBoxIdx];
+  const hs = 8 / canvas.width;
+  const corners = [
+    {name:'tl',x:box.x,y:box.y},{name:'tr',x:box.x+box.w,y:box.y},
+    {name:'bl',x:box.x,y:box.y+box.h},{name:'br',x:box.x+box.w,y:box.y+box.h},
+    {name:'t',x:box.x+box.w/2,y:box.y},{name:'b',x:box.x+box.w/2,y:box.y+box.h},
+    {name:'l',x:box.x,y:box.y+box.h/2},{name:'r',x:box.x+box.w,y:box.y+box.h/2},
+  ];
+  for (const c of corners) {
+    if (Math.abs(pos.x-c.x)<hs && Math.abs(pos.y-c.y)<hs) return c.name;
+  }
+  return null;
+}
+function getBoxAt(pos) {
+  for (let i = annotBoxes.length-1; i >= 0; i--) {
+    const b = annotBoxes[i];
+    if (pos.x>=b.x && pos.x<=b.x+b.w && pos.y>=b.y && pos.y<=b.y+b.h) return i;
+  }
+  return -1;
+}
+
+if (canvas) {
+  canvas.addEventListener('mousedown', function(e) {
+    const pos = getCanvasPos(e);
+    if (annotTool === 'draw') {
+      pushUndo();
+      isDrawing = true;
+      drawStart = pos;
+    } else {
+      const handle = getHandleAt(pos);
+      if (handle) {
+        pushUndo();
+        isResizing = true;
+        resizeHandle = handle;
+        return;
+      }
+      const bi = getBoxAt(pos);
+      if (bi >= 0) {
+        selectedBoxIdx = bi;
+        pushUndo();
+        isDragging = true;
+        dragOffset = {x: pos.x - annotBoxes[bi].x, y: pos.y - annotBoxes[bi].y};
+        drawCanvas(); renderBoxList();
+      } else {
+        selectedBoxIdx = -1;
+        drawCanvas(); renderBoxList();
+      }
+    }
+  });
+  canvas.addEventListener('mousemove', function(e) {
+    const pos = getCanvasPos(e);
+    if (isDrawing && drawStart) {
+      drawCanvas();
+      const x = Math.min(drawStart.x, pos.x) * canvas.width;
+      const y = Math.min(drawStart.y, pos.y) * canvas.height;
+      const w = Math.abs(pos.x - drawStart.x) * canvas.width;
+      const h = Math.abs(pos.y - drawStart.y) * canvas.height;
+      ctx.strokeStyle = '#a78bfa'; ctx.lineWidth = 2; ctx.setLineDash([5,5]);
+      ctx.strokeRect(x, y, w, h); ctx.setLineDash([]);
+    } else if (isDragging && selectedBoxIdx >= 0) {
+      const b = annotBoxes[selectedBoxIdx];
+      b.x = Math.max(0, Math.min(pos.x - dragOffset.x, 1 - b.w));
+      b.y = Math.max(0, Math.min(pos.y - dragOffset.y, 1 - b.h));
+      drawCanvas();
+    } else if (isResizing && selectedBoxIdx >= 0) {
+      const b = annotBoxes[selectedBoxIdx];
+      const h = resizeHandle;
+      if (h.includes('r')) b.w = Math.max(0.02, pos.x - b.x);
+      if (h.includes('l')) { const r = b.x+b.w; b.x = Math.min(pos.x, r-0.02); b.w = r-b.x; }
+      if (h.includes('b')) b.h = Math.max(0.02, pos.y - b.y);
+      if (h.includes('t')) { const bt = b.y+b.h; b.y = Math.min(pos.y, bt-0.02); b.h = bt-b.y; }
+      drawCanvas();
+    } else if (annotTool === 'select') {
+      const handle = getHandleAt(pos);
+      if (handle) {
+        const cursors = {tl:'nwse-resize',tr:'nesw-resize',bl:'nesw-resize',br:'nwse-resize',
+          t:'ns-resize',b:'ns-resize',l:'ew-resize',r:'ew-resize'};
+        canvas.style.cursor = cursors[handle];
+      } else if (getBoxAt(pos) >= 0) { canvas.style.cursor = 'move'; }
+      else { canvas.style.cursor = 'default'; }
+    }
+  });
+  canvas.addEventListener('mouseup', function(e) {
+    if (isDrawing && drawStart) {
+      const pos = getCanvasPos(e);
+      const x = Math.min(drawStart.x, pos.x), y = Math.min(drawStart.y, pos.y);
+      const w = Math.abs(pos.x - drawStart.x), h = Math.abs(pos.y - drawStart.y);
+      if (w > 0.01 && h > 0.01) {
+        annotBoxes.push({x, y, w, h, label: ''});
+        selectedBoxIdx = annotBoxes.length - 1;
+        saveAnnot(); renderBoxList();
+      }
+    }
+    if (isDragging || isResizing) { saveAnnot(); renderBoxList(); }
+    isDrawing = false; isDragging = false; isResizing = false; drawStart = null;
+    drawCanvas();
+  });
+}
+
+function setAnnotTool(tool) {
+  annotTool = tool;
+  document.getElementById('toolDraw').classList.toggle('active-tool', tool==='draw');
+  document.getElementById('toolSelect').classList.toggle('active-tool', tool==='select');
+  canvas.style.cursor = tool === 'draw' ? 'crosshair' : 'default';
+}
+function annotPrev() { if (annotIdx > 0) { saveAnnot(); annotIdx--; loadAnnotImage(); } }
+function annotNext() { if (annotIdx < allImages.length-1) { saveAnnot(); annotIdx++; loadAnnotImage(); } }
+function annotDelete() {
+  if (selectedBoxIdx >= 0) deleteBox(selectedBoxIdx);
+}
+
+function pushUndo() {
+  undoStack.push(JSON.parse(JSON.stringify(annotBoxes)));
+  redoStack = [];
+  if (undoStack.length > 50) undoStack.shift();
+}
+function annotUndo() {
+  if (!undoStack.length) return;
+  redoStack.push(JSON.parse(JSON.stringify(annotBoxes)));
+  annotBoxes = undoStack.pop();
+  annotations[allImages[annotIdx].url] = annotBoxes;
+  selectedBoxIdx = -1; drawCanvas(); renderBoxList();
+}
+function annotRedo() {
+  if (!redoStack.length) return;
+  undoStack.push(JSON.parse(JSON.stringify(annotBoxes)));
+  annotBoxes = redoStack.pop();
+  annotations[allImages[annotIdx].url] = annotBoxes;
+  selectedBoxIdx = -1; drawCanvas(); renderBoxList();
+}
+
+document.addEventListener('keydown', function(e) {
+  if (document.getElementById('annotateView').classList.contains('hidden')) return;
+  if (e.key === 'Delete' || e.key === 'Backspace') { if (e.target.tagName !== 'INPUT') annotDelete(); }
+  if (e.ctrlKey && e.key === 'z') { e.preventDefault(); annotUndo(); }
+  if (e.ctrlKey && e.key === 'y') { e.preventDefault(); annotRedo(); }
+});
+
+// =====================================================================
+// YOLO EXPORT
+// =====================================================================
+async function exportYOLO() {
+  saveAnnot();
+  const classKeys = Object.keys(dataset);
+  if (!classKeys.length) { alert('No classes defined'); return; }
+
+  const zip = new JSZip();
+  zip.file('classes.txt', classKeys.join('\\n'));
+
+  let imgIndex = 0;
+  for (const imgData of allImages) {
+    const boxes = annotations[imgData.url] || [];
+    const fname = 'image_' + String(imgIndex).padStart(4,'0');
+
+    try {
+      const resp = await fetch('/api/proxy-image?url=' + encodeURIComponent(imgData.url));
+      const blob = await resp.blob();
+      const ext = blob.type.includes('png') ? '.png' : '.jpg';
+      zip.file('images/' + fname + ext, blob);
+    } catch(e) { imgIndex++; continue; }
+
+    let labelLines = '';
+    boxes.forEach(box => {
+      const ci = classKeys.indexOf(box.label);
+      if (ci < 0) return;
+      const cx = (box.x + box.w/2).toFixed(6);
+      const cy = (box.y + box.h/2).toFixed(6);
+      const bw = box.w.toFixed(6);
+      const bh = box.h.toFixed(6);
+      labelLines += ci + ' ' + cx + ' ' + cy + ' ' + bw + ' ' + bh + '\\n';
+    });
+    zip.file('labels/' + fname + '.txt', labelLines);
+    imgIndex++;
+  }
+
+  const blob = await zip.generateAsync({type: 'blob'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'curatorai_yolo_dataset.zip';
+  a.click();
+}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 </body>
 </html>
 """
@@ -1005,6 +1956,51 @@ def about():
     return render_template_string(ABOUT_PAGE)
 
 
+@app.route("/train")
+def train():
+    visitor_count = _read_counter()
+    return render_template_string(TRAIN_PAGE, visitor_count=visitor_count)
+
+
+@app.route("/api/search", methods=["POST"])
+def api_search():
+    """JSON endpoint for the training page to search images."""
+    data = request.get_json(silent=True) or {}
+    description = data.get("description", "").strip()
+    num_images = int(data.get("num_images", 20))
+    num_images = max(5, min(num_images, 50))
+
+    if not description:
+        return jsonify({"error": "Description is required"}), 400
+
+    if not os.environ.get("AZURE_OPENAI_KEY") or not os.environ.get("AZURE_OPENAI_ENDPOINT"):
+        return jsonify({"error": "AI service not configured"}), 500
+
+    try:
+        ai_result = ai_generate_queries(description, num_images)
+        queries = ai_result.get("queries", [description])
+        images = collect_images(queries, num_images)
+        return jsonify({"images": images, "queries": queries})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/proxy-image")
+def proxy_image():
+    """Proxy external images to avoid CORS issues for TF.js training."""
+    url = request.args.get("url", "")
+    if not url.startswith("https://"):
+        return "Invalid URL", 400
+    try:
+        r = http_requests.get(url, timeout=15, headers={"User-Agent": "CuratorAI/1.0"})
+        r.raise_for_status()
+        resp = Response(r.content, content_type=r.headers.get("Content-Type", "image/jpeg"))
+        resp.headers["Cache-Control"] = "public, max-age=86400"
+        return resp
+    except Exception:
+        return "Image not found", 404
+
+
 @app.route("/debug")
 def debug_check():
     import traceback
@@ -1107,6 +2103,11 @@ def sitemap():
     <loc>{base}/about</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>{base}/train</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
   </url>
 </urlset>"""
     return xml, 200, {"Content-Type": "application/xml"}
