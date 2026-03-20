@@ -448,12 +448,25 @@ PAGE = """
       transition: color 0.2s;
     }
     .lightbox-close:hover { color: #fff; }
+
+    .home-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+    .home-tabs .btn { padding: 10px 22px; font-size: 0.9rem; }
+    .home-audio-list { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+    .home-audio-item {
+      display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+      background: rgba(255,255,255,0.05); border-radius: 10px; border: 1px solid rgba(255,255,255,0.08);
+    }
+    .home-audio-item.deselected { opacity: 0.35; }
+    .home-audio-item input[type="checkbox"] { width: 20px; height: 20px; accent-color: #7c3aed; flex-shrink: 0; }
+    .home-audio-item .t { flex: 1; min-width: 0; font-size: 0.88rem; color: #e5e7eb; }
+    .home-audio-item .meta { font-size: 0.75rem; color: #6b7280; margin-top: 2px; }
+    .home-audio-item audio { height: 36px; max-width: 240px; flex-shrink: 0; }
   </style>
 </head>
 <body>
   <div class="loading-overlay" id="loadingOverlay">
     <div class="spinner"></div>
-    <p id="loadingText">Searching for images...</p>
+    <p id="loadingText">Searching...</p>
     <span class="subtext">This may take a few seconds</span>
   </div>
 
@@ -478,7 +491,7 @@ PAGE = """
   <div class="container">
     <div class="header">
       <h1>CuratorAI</h1>
-      <p>Describe what training images you need &mdash; AI finds Creative Commons pictures for you</p>
+      <p id="homeTagline">Describe what you need &mdash; AI finds Creative Commons images or sounds for your dataset</p>
     </div>
 
     <div class="nav">
@@ -493,21 +506,26 @@ PAGE = """
 
     <!-- Search form -->
     <div class="card">
-      <form method="post" action="/">
+      <form method="post" action="/" id="homeSearchForm">
+        <input type="hidden" name="media_type" id="homeMediaType" value="{{ media_type|default('image') }}" />
+        <div class="home-tabs">
+          <button type="button" class="btn btn-primary" id="tabImg" onclick="setHomeMedia('image')">Images</button>
+          <button type="button" class="btn btn-outline" id="tabAud" onclick="setHomeMedia('audio')">Sounds</button>
+        </div>
         <div class="form-row">
-          <label for="description">Describe the images you need</label>
+          <label for="description" id="homeLabelDesc">Describe the images you need</label>
           <textarea id="description" name="description"
             placeholder="e.g. Different breeds of dogs in outdoor settings for training a dog breed classifier">{{ description }}</textarea>
         </div>
         <div class="form-row">
-          <label for="num_images">Number of images (5 &ndash; 50)</label>
+          <label for="num_images" id="homeLabelNum">Number of items (5 &ndash; 50)</label>
           <input type="number" id="num_images" name="num_images"
                  value="{{ num_images }}" min="5" max="50" />
         </div>
-        <button type="submit" class="btn btn-primary">
+        <button type="submit" class="btn btn-primary" id="homeSearchBtn">
           <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
                viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          Search Images
+          <span id="homeSearchBtnText">Search Images</span>
         </button>
       </form>
     </div>
@@ -517,17 +535,23 @@ PAGE = """
     <div class="card">
       <div class="results-header">
         <div>
+          {% if media_type == 'audio' %}
+          <h2 style="font-size:1.2rem;">Found {{ images|length }} sound{{ "s" if images|length != 1 }}</h2>
+          <div class="results-count">Creative Commons licensed &middot; preview with play, uncheck what you don&rsquo;t want, then download ZIP</div>
+          {% else %}
           <h2 style="font-size:1.2rem;">Found {{ images|length }} image{{ "s" if images|length != 1 }}</h2>
           <div class="results-count">Creative Commons licensed &middot; uncheck images you don't want, then download</div>
+          {% endif %}
         </div>
         <form method="post" action="/download" id="downloadForm">
           <input type="hidden" name="urls" id="selectedUrls" value="{{ images_json }}" />
           <input type="hidden" name="description" value="{{ description }}" />
+          <input type="hidden" name="kind" id="downloadKind" value="{{ media_type|default('image') }}" />
           <button type="submit" class="btn btn-success">
             <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"
                  viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                  <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Download ZIP
+            <span id="downloadBtnLabel">Download ZIP</span>
           </button>
         </form>
       </div>
@@ -535,11 +559,24 @@ PAGE = """
       <div class="selection-bar">
         <div><span class="count" id="selectedCount">{{ images|length }}</span> of {{ images|length }} selected</div>
         <div>
-          <button type="button" onclick="toggleAll(true)">Select all</button>
-          <button type="button" onclick="toggleAll(false)">Deselect all</button>
+          <button type="button" onclick="homeToggleAll(true)">Select all</button>
+          <button type="button" onclick="homeToggleAll(false)">Deselect all</button>
         </div>
       </div>
 
+      {% if media_type == 'audio' %}
+      <div class="home-audio-list" id="homeAudioList">
+        {% for item in images %}
+        <div class="home-audio-item" data-url="{{ item.url }}">
+          <input type="checkbox" checked onchange="updateHomeSelection()" />
+          <div class="t">{{ item.title }}
+            <div class="meta">{% if item.duration %}{{ item.duration }}s{% endif %}{% if item.source %} &middot; {{ item.source }}{% endif %}</div>
+          </div>
+          <audio controls preload="none" src="/api/proxy-audio?url={{ item.url|urlencode }}"></audio>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
       <div class="image-grid">
         {% for img in images %}
         <div class="image-card" data-url="{{ img.url }}">
@@ -549,6 +586,7 @@ PAGE = """
         </div>
         {% endfor %}
       </div>
+      {% endif %}
 
       {% if queries_used %}
       <div class="queries-used">
@@ -565,7 +603,7 @@ PAGE = """
     </div>
     {% elif request_method == "POST" and not error %}
     <div class="card">
-      <div class="empty-state">No Creative Commons images found. Try a different description.</div>
+      <div class="empty-state" id="homeEmptyMsg">No Creative Commons items found. Try a different description.</div>
     </div>
     {% endif %}
 
@@ -614,18 +652,75 @@ PAGE = """
       updateSelection();
     }
 
+    function setHomeMedia(t) {
+      var hid = document.getElementById('homeMediaType');
+      if (!hid) return;
+      hid.value = t;
+      var ti = document.getElementById('tabImg'), ta = document.getElementById('tabAud');
+      if (ti) ti.className = t === 'image' ? 'btn btn-primary' : 'btn btn-outline';
+      if (ta) ta.className = t === 'audio' ? 'btn btn-primary' : 'btn btn-outline';
+      var ld = document.getElementById('homeLabelDesc');
+      if (ld) ld.textContent = t === 'audio' ? 'Describe the sounds you need' : 'Describe the images you need';
+      var ph = document.getElementById('description');
+      if (ph) ph.placeholder = t === 'audio'
+        ? 'e.g. bird calls, footsteps, rain — for a sound classification dataset'
+        : 'e.g. Different breeds of dogs in outdoor settings for training a dog breed classifier';
+      var btn = document.getElementById('homeSearchBtnText');
+      if (btn) btn.textContent = t === 'audio' ? 'Search Sounds' : 'Search Images';
+      var tag = document.getElementById('homeTagline');
+      if (tag) tag.textContent = t === 'audio'
+        ? 'Describe sounds you need — AI finds Creative Commons audio for your dataset'
+        : 'Describe what you need — AI finds Creative Commons images or sounds for your dataset';
+      var dk = document.getElementById('downloadKind');
+      if (dk) dk.value = t;
+    }
+
+    function updateHomeSelection() {
+      var items = document.querySelectorAll('.home-audio-item');
+      if (!items.length) return;
+      var urls = [];
+      items.forEach(function(row) {
+        var cb = row.querySelector('input[type="checkbox"]');
+        if (cb.checked) {
+          urls.push(row.dataset.url);
+          row.classList.remove('deselected');
+        } else row.classList.add('deselected');
+      });
+      var countEl = document.getElementById('selectedCount');
+      if (countEl) countEl.textContent = urls.length;
+      var urlsInput = document.getElementById('selectedUrls');
+      if (urlsInput) urlsInput.value = JSON.stringify(urls);
+    }
+
+    function homeToggleAll(checked) {
+      if (document.querySelector('.home-audio-item')) {
+        document.querySelectorAll('.home-audio-item input[type="checkbox"]').forEach(function(cb) { cb.checked = checked; });
+        updateHomeSelection();
+      } else {
+        toggleAll(checked);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      var mt = document.getElementById('homeMediaType');
+      if (mt && mt.value === 'audio') setHomeMedia('audio');
+    });
+
     document.querySelectorAll('form').forEach(function(form) {
       form.addEventListener('submit', function() {
         var overlay = document.getElementById('loadingOverlay');
         var text = document.getElementById('loadingText');
         if (form.action.includes('/download')) {
-          text.textContent = 'Downloading and zipping images...';
+          var dk = document.getElementById('downloadKind');
+          var isAud = dk && dk.value === 'audio';
+          text.textContent = isAud ? 'Downloading and zipping sounds...' : 'Downloading and zipping images...';
           overlay.classList.add('active');
           setTimeout(function() {
             overlay.classList.remove('active');
           }, 3000);
         } else {
-          text.textContent = 'Searching for images...';
+          var hm = document.getElementById('homeMediaType');
+          text.textContent = hm && hm.value === 'audio' ? 'Searching for sounds...' : 'Searching for images...';
           overlay.classList.add('active');
         }
       });
@@ -2246,6 +2341,7 @@ def home():
     description = ""
     num_images = 20
     images_json = ""
+    media_type = "image"
 
     if not os.environ.get("AZURE_OPENAI_KEY") or not os.environ.get("AZURE_OPENAI_ENDPOINT"):
         error = "Missing AZURE_OPENAI_KEY or AZURE_OPENAI_ENDPOINT"
@@ -2256,20 +2352,29 @@ def home():
         description = request.form.get("description", "").strip()
         num_images = int(request.form.get("num_images", 20))
         num_images = max(5, min(num_images, 50))
+        media_type = request.form.get("media_type", "image").strip().lower()
+        if media_type not in ("image", "audio"):
+            media_type = "image"
 
         if not description:
-            error = "Please describe what images you need."
+            error = "Please describe what you are looking for."
         else:
             try:
                 ai_result = ai_generate_queries(description, num_images)
                 queries_used = ai_result.get("queries", [description])
 
-                images = collect_images(queries_used, num_images)
-
-                if not images:
-                    error = "No Creative Commons images found. Try a different description."
+                if media_type == "audio":
+                    images = collect_audio(queries_used, num_images)
+                    if not images:
+                        error = "No Creative Commons audio found. Try a different description or add FREESOUND_API_KEY for more results."
+                    else:
+                        images_json = json.dumps([a["url"] for a in images])
                 else:
-                    images_json = json.dumps([img["url"] for img in images])
+                    images = collect_images(queries_used, num_images)
+                    if not images:
+                        error = "No Creative Commons images found. Try a different description."
+                    else:
+                        images_json = json.dumps([img["url"] for img in images])
 
             except json.JSONDecodeError:
                 error = "AI returned an unexpected format. Please try again."
@@ -2289,6 +2394,7 @@ def home():
         request_method=request.method,
         active_page="home",
         visitor_count=visitor_count,
+        media_type=media_type,
     )
 
 
@@ -2402,9 +2508,10 @@ def debug_check():
 
 @app.route("/download", methods=["POST"])
 def download():
-    """Download all found images and send them as a ZIP."""
+    """Download found images or audio as a ZIP."""
     urls_json = request.form.get("urls", "[]")
     description = request.form.get("description", "dataset")
+    kind = request.form.get("kind", "image").strip().lower()
 
     try:
         urls = json.loads(urls_json)
@@ -2412,7 +2519,7 @@ def download():
         return "Invalid data", 400
 
     if not urls:
-        return "No images to download", 400
+        return "No files to download", 400
 
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -2420,21 +2527,31 @@ def download():
             try:
                 r = http_requests.get(
                     url,
-                    timeout=15,
+                    timeout=30 if kind == "audio" else 15,
                     headers={"User-Agent": "Mozilla/5.0 (DatasetBuilder/1.0)"},
                 )
                 r.raise_for_status()
 
-                ct = r.headers.get("Content-Type", "")
-                ext = ".jpg"
-                if "png" in ct:
-                    ext = ".png"
-                elif "gif" in ct:
-                    ext = ".gif"
-                elif "webp" in ct:
-                    ext = ".webp"
-
-                zf.writestr(f"image_{i + 1:04d}{ext}", r.content)
+                ct = (r.headers.get("Content-Type") or "").lower()
+                ulow = url.lower()
+                if kind == "audio":
+                    ext = ".mp3"
+                    if "ogg" in ct or ulow.endswith(".ogg"):
+                        ext = ".ogg"
+                    elif "wav" in ct or ulow.endswith(".wav"):
+                        ext = ".wav"
+                    elif "mpeg" in ct or "mp3" in ct or ulow.endswith(".mp3"):
+                        ext = ".mp3"
+                    zf.writestr(f"audio_{i + 1:04d}{ext}", r.content)
+                else:
+                    ext = ".jpg"
+                    if "png" in ct:
+                        ext = ".png"
+                    elif "gif" in ct:
+                        ext = ".gif"
+                    elif "webp" in ct:
+                        ext = ".webp"
+                    zf.writestr(f"image_{i + 1:04d}{ext}", r.content)
             except Exception:
                 continue
 
@@ -2443,12 +2560,13 @@ def download():
     safe_name = "".join(
         c if c.isalnum() or c in " -_" else "" for c in description
     )[:40].strip() or "dataset"
+    suffix = "sounds" if kind == "audio" else "images"
 
     return send_file(
         zip_buffer,
         mimetype="application/zip",
         as_attachment=True,
-        download_name=f"{safe_name}_images.zip",
+        download_name=f"{safe_name}_{suffix}.zip",
     )
 
 
