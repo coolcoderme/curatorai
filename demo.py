@@ -983,6 +983,18 @@ TRAIN_PAGE = """
     }
     .btn-kofi:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(255,94,91,0.45); }
     .footer { text-align: center; margin-top: 16px; font-size: 0.75rem; color: #4b5563; }
+    .audio-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+      background: rgba(255,255,255,0.05); border-radius: 10px; margin-bottom: 6px; }
+    .audio-item.deselected { opacity: 0.3; }
+    .audio-item input[type="checkbox"] { width: 18px; height: 18px; accent-color: #7c3aed; flex-shrink: 0; }
+    .audio-item .audio-info { flex: 1; min-width: 0; }
+    .audio-item .audio-title { font-size: 0.85rem; color: #e0e0e0; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis; }
+    .audio-item .audio-meta { font-size: 0.75rem; color: #6b7280; }
+    .audio-item audio { height: 32px; flex-shrink: 0; }
+    .audio-thumb { display: flex; align-items: center; gap: 8px; padding: 4px 8px;
+      background: rgba(255,255,255,0.05); border-radius: 8px; font-size: 0.8rem; color: #9ca3af; }
+    .audio-thumb audio { height: 28px; }
     .hidden { display: none !important; }
     .status-msg { color: #9ca3af; font-size: 0.85rem; margin: 12px 0; }
     .visitor-counter {
@@ -1024,6 +1036,10 @@ TRAIN_PAGE = """
     <div id="buildView">
       <div class="card">
         <h2>Add a Class</h2>
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+          <button class="btn btn-primary" id="typeImgBtn" onclick="setMediaType('image')" style="padding:8px 20px">Images</button>
+          <button class="btn btn-outline" id="typeAudBtn" onclick="setMediaType('audio')" style="padding:8px 20px">Audio</button>
+        </div>
         <div class="form-grid">
           <div class="form-row">
             <label for="className">Class name</label>
@@ -1031,14 +1047,14 @@ TRAIN_PAGE = """
           </div>
           <div class="form-row">
             <label for="classDesc">Description</label>
-            <input type="text" id="classDesc" placeholder="e.g. house cats indoors" />
+            <input type="text" id="classDesc" placeholder="e.g. cat meowing" />
           </div>
           <div class="form-row">
-            <label for="classNum">Images</label>
+            <label for="classNum" id="classNumLabel">Items</label>
             <input type="number" id="classNum" value="20" min="5" max="50" />
           </div>
         </div>
-        <button class="btn btn-primary" onclick="searchForClass()" id="searchBtn">Search Images</button>
+        <button class="btn btn-primary" onclick="searchForClass()" id="searchBtn">Search</button>
         <div id="searchStatus" class="status-msg"></div>
       </div>
 
@@ -1155,6 +1171,15 @@ TRAIN_PAGE = """
 const dataset = {};
 let searchResults = [];
 let currentStep = 1;
+let mediaType = 'image';
+
+function setMediaType(type) {
+  mediaType = type;
+  document.getElementById('typeImgBtn').className = type==='image' ? 'btn btn-primary' : 'btn btn-outline';
+  document.getElementById('typeAudBtn').className = type==='audio' ? 'btn btn-primary' : 'btn btn-outline';
+  document.getElementById('classNumLabel').textContent = 'Items';
+  document.getElementById('classDesc').placeholder = type==='audio' ? 'e.g. cat meowing sounds' : 'e.g. house cats indoors';
+}
 
 // Annotation state
 const annotations = {};
@@ -1194,7 +1219,7 @@ async function searchForClass() {
     const resp = await fetch('/api/search', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({description: desc, num_images: Math.min(Math.max(num, 5), 50)})
+      body: JSON.stringify({description: desc, num_images: Math.min(Math.max(num, 5), 50), type: mediaType})
     });
     const data = await resp.json();
     if (data.error) { document.getElementById('searchStatus').textContent = data.error; return; }
@@ -1214,16 +1239,37 @@ function renderSearchResults() {
   const grid = document.getElementById('searchResultsGrid');
   grid.innerHTML = '';
   let selCount = 0;
-  searchResults.forEach((img, i) => {
-    const div = document.createElement('div');
-    div.className = 'sr-item' + (img.selected ? ' selected' : ' deselected');
-    div.innerHTML = '<input type="checkbox" ' + (img.selected ? 'checked' : '') +
-      ' onchange="srToggle(' + i + ')" /><img src="' + img.thumb + '" alt="' + (img.title||'').replace(/"/g,'') +
-      '" title="' + (img.title||'').replace(/"/g,'') + '" loading="lazy" />';
-    div.querySelector('img').onclick = function() { srToggle(i); };
-    grid.appendChild(div);
-    if (img.selected) selCount++;
-  });
+  if (mediaType === 'audio') {
+    grid.className = '';
+    grid.style.display = 'flex';
+    grid.style.flexDirection = 'column';
+    searchResults.forEach((item, i) => {
+      const div = document.createElement('div');
+      div.className = 'audio-item' + (item.selected ? '' : ' deselected');
+      const safeTitle = (item.title||'').replace(/"/g,'&quot;');
+      div.innerHTML = '<input type="checkbox" ' + (item.selected?'checked':'') +
+        ' onchange="srToggle('+i+')" />' +
+        '<div class="audio-info"><div class="audio-title">'+safeTitle+'</div>' +
+        '<div class="audio-meta">'+(item.duration?item.duration+'s':'')+(item.source?' · '+item.source:'')+'</div></div>' +
+        '<audio controls preload="none" src="/api/proxy-audio?url='+encodeURIComponent(item.url)+'"></audio>';
+      grid.appendChild(div);
+      if (item.selected) selCount++;
+    });
+  } else {
+    grid.className = 'search-results-grid';
+    grid.style.display = '';
+    grid.style.flexDirection = '';
+    searchResults.forEach((img, i) => {
+      const div = document.createElement('div');
+      div.className = 'sr-item' + (img.selected ? ' selected' : ' deselected');
+      div.innerHTML = '<input type="checkbox" ' + (img.selected ? 'checked' : '') +
+        ' onchange="srToggle(' + i + ')" /><img src="' + img.thumb + '" alt="' + (img.title||'').replace(/"/g,'') +
+        '" title="' + (img.title||'').replace(/"/g,'') + '" loading="lazy" />';
+      div.querySelector('img').onclick = function() { srToggle(i); };
+      grid.appendChild(div);
+      if (img.selected) selCount++;
+    });
+  }
   document.getElementById('srSelectedCount').textContent = selCount;
 }
 
@@ -1274,13 +1320,22 @@ function renderDataset() {
       '\\')">Remove class</button>';
     bucket.appendChild(hdr);
     const grid = document.createElement('div');
-    grid.className = 'thumb-grid';
+    grid.className = dataset[cls][0] && dataset[cls][0].source ? '' : 'thumb-grid';
     dataset[cls].forEach((img, i) => {
       const item = document.createElement('div');
-      item.className = 'thumb-item';
-      item.innerHTML = '<img src="'+img.thumb+'" alt="'+cls+'" />' +
-        '<button class="del-btn" onclick="removeImage(\\''+cls.replace(/'/g,"\\\\'")+
-        '\\','+i+')">&times;</button>';
+      const isAudio = img.source === 'openverse' || img.source === 'freesound';
+      if (isAudio) {
+        item.className = 'audio-thumb';
+        item.innerHTML = '<span>'+(img.title||'Audio').substring(0,30)+'</span>' +
+          '<audio controls preload="none" src="/api/proxy-audio?url='+encodeURIComponent(img.url)+'"></audio>' +
+          '<button class="btn btn-danger" onclick="removeImage(\\''+cls.replace(/'/g,"\\\\'")+
+          '\\','+i+')">&times;</button>';
+      } else {
+        item.className = 'thumb-item';
+        item.innerHTML = '<img src="'+img.thumb+'" alt="'+cls+'" />' +
+          '<button class="del-btn" onclick="removeImage(\\''+cls.replace(/'/g,"\\\\'")+
+          '\\','+i+')">&times;</button>';
+      }
       grid.appendChild(item);
     });
     bucket.appendChild(grid);
@@ -1363,16 +1418,23 @@ async function trainModel() {
 
     for (let ci = 0; ci < keys.length; ci++) {
       const cls = keys[ci];
-      for (const img of dataset[cls]) {
+      for (const item of dataset[cls]) {
         try {
-          const imgEl = await loadImageEl(img.url);
+          const isAudio = item.source === 'openverse' || item.source === 'freesound';
+          let imgEl;
+          if (isAudio) {
+            addLog('  Converting audio to spectrogram...');
+            imgEl = await audioToSpectrogram(item.url);
+          } else {
+            imgEl = await loadImageEl(item.url);
+          }
           const feat = mobilenetModel.infer(imgEl, true);
           features.push(feat);
           labels.push(ci);
           processed++;
           addLog('  Processed ' + processed + '/' + totalImages + ': ' + cls);
         } catch(e) {
-          addLog('  Skipped image: ' + e.message);
+          addLog('  Skipped item: ' + e.message);
         }
       }
     }
@@ -1427,6 +1489,83 @@ function loadImageEl(url) {
     img.onerror = () => reject(new Error('Failed to load image'));
     img.src = '/api/proxy-image?url=' + encodeURIComponent(url);
   });
+}
+
+async function audioToSpectrogram(url) {
+  const resp = await fetch('/api/proxy-audio?url=' + encodeURIComponent(url));
+  const arrayBuf = await resp.arrayBuffer();
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)({sampleRate: 22050});
+  const audioBuf = await audioCtx.decodeAudioData(arrayBuf);
+  const samples = audioBuf.getChannelData(0);
+  const maxSamples = 22050 * 4;
+  const data = samples.length > maxSamples ? samples.slice(0, maxSamples) : samples;
+
+  const fftSize = 512;
+  const hopSize = 256;
+  const numFrames = Math.floor((data.length - fftSize) / hopSize);
+  const numBins = fftSize / 2;
+  if (numFrames < 2) throw new Error('Audio too short');
+
+  const specData = [];
+  const hann = new Float32Array(fftSize);
+  for (let i = 0; i < fftSize; i++) hann[i] = 0.5 * (1 - Math.cos(2 * Math.PI * i / fftSize));
+
+  for (let f = 0; f < numFrames; f++) {
+    const frame = new Float32Array(fftSize);
+    for (let i = 0; i < fftSize; i++) frame[i] = (data[f*hopSize+i] || 0) * hann[i];
+    const re = new Float32Array(fftSize);
+    const im = new Float32Array(fftSize);
+    re.set(frame);
+    fft(re, im, fftSize);
+    const mags = new Float32Array(numBins);
+    for (let i = 0; i < numBins; i++) mags[i] = Math.log1p(Math.sqrt(re[i]*re[i]+im[i]*im[i]));
+    specData.push(mags);
+  }
+
+  const specCanvas = document.createElement('canvas');
+  specCanvas.width = 224;
+  specCanvas.height = 224;
+  const sctx = specCanvas.getContext('2d');
+  const imgData = sctx.createImageData(224, 224);
+  let maxVal = 0;
+  specData.forEach(col => col.forEach(v => { if(v>maxVal) maxVal=v; }));
+  if (maxVal === 0) maxVal = 1;
+  for (let y = 0; y < 224; y++) {
+    for (let x = 0; x < 224; x++) {
+      const fi = Math.floor(x / 224 * numFrames);
+      const bi = numBins - 1 - Math.floor(y / 224 * numBins);
+      const val = Math.round((specData[fi]?.[bi]||0) / maxVal * 255);
+      const idx = (y * 224 + x) * 4;
+      imgData.data[idx] = val;
+      imgData.data[idx+1] = val * 0.6;
+      imgData.data[idx+2] = val * 0.9;
+      imgData.data[idx+3] = 255;
+    }
+  }
+  sctx.putImageData(imgData, 0, 0);
+  audioCtx.close();
+  return specCanvas;
+}
+
+function fft(re, im, n) {
+  if (n <= 1) return;
+  const halfN = n / 2;
+  const reEven = new Float32Array(halfN), imEven = new Float32Array(halfN);
+  const reOdd = new Float32Array(halfN), imOdd = new Float32Array(halfN);
+  for (let i = 0; i < halfN; i++) {
+    reEven[i] = re[2*i]; imEven[i] = im[2*i];
+    reOdd[i] = re[2*i+1]; imOdd[i] = im[2*i+1];
+  }
+  fft(reEven, imEven, halfN);
+  fft(reOdd, imOdd, halfN);
+  for (let k = 0; k < halfN; k++) {
+    const angle = -2 * Math.PI * k / n;
+    const cos = Math.cos(angle), sin = Math.sin(angle);
+    const tRe = cos * reOdd[k] - sin * imOdd[k];
+    const tIm = sin * reOdd[k] + cos * imOdd[k];
+    re[k] = reEven[k] + tRe; im[k] = imEven[k] + tIm;
+    re[k+halfN] = reEven[k] - tRe; im[k+halfN] = imEven[k] - tIm;
+  }
 }
 
 async function downloadClassificationModel() {
@@ -1895,6 +2034,92 @@ def collect_images(queries, total_needed):
 
 
 # ---------------------------------------------------------------------------
+# Audio search: Openverse + Freesound
+# ---------------------------------------------------------------------------
+def search_openverse_audio(query, page_size=20, page=1):
+    token = _get_openverse_token()
+    url = "https://api.openverse.org/v1/audio/"
+    params = {
+        "q": query,
+        "license": "by,by-sa,by-nc,cc0",
+        "page_size": min(page_size, 50),
+        "page": page,
+    }
+    headers = {
+        "User-Agent": "CuratorAI/1.0",
+        "Authorization": f"Bearer {token}",
+    }
+    r = http_requests.get(url, params=params, headers=headers, timeout=15)
+    r.raise_for_status()
+    data = r.json()
+    results = []
+    for item in data.get("results", []):
+        preview = ""
+        if isinstance(item.get("url"), str):
+            preview = item["url"]
+        results.append({
+            "title": item.get("title", "") or "Untitled",
+            "url": preview,
+            "duration": item.get("duration", 0),
+            "source": "openverse",
+        })
+    return [r for r in results if r["url"]]
+
+
+def search_freesound(query, page_size=20):
+    fs_key = os.environ.get("FREESOUND_API_KEY", "")
+    if not fs_key:
+        return []
+    url = "https://freesound.org/apiv2/search/text/"
+    params = {
+        "query": query,
+        "token": fs_key,
+        "fields": "id,name,previews,duration,license",
+        "page_size": min(page_size, 50),
+    }
+    r = http_requests.get(url, params=params, timeout=15)
+    r.raise_for_status()
+    data = r.json()
+    results = []
+    for item in data.get("results", []):
+        previews = item.get("previews", {})
+        preview = previews.get("preview-lq-mp3", "") or previews.get("preview-hq-mp3", "")
+        if preview:
+            results.append({
+                "title": item.get("name", "Untitled"),
+                "url": preview,
+                "duration": round(item.get("duration", 0), 1),
+                "source": "freesound",
+            })
+    return results
+
+
+def collect_audio(queries, total_needed):
+    """Search both Openverse and Freesound for audio."""
+    all_audio = []
+    seen_urls = set()
+
+    for i, query in enumerate(queries):
+        if len(all_audio) >= total_needed:
+            break
+        if i > 0:
+            time.sleep(0.3)
+        for search_fn in [search_openverse_audio, search_freesound]:
+            if len(all_audio) >= total_needed:
+                break
+            try:
+                results = search_fn(query, page_size=min(total_needed, 20))
+                for audio in results:
+                    if audio["url"] not in seen_urls and len(all_audio) < total_needed:
+                        seen_urls.add(audio["url"])
+                        all_audio.append(audio)
+            except Exception:
+                continue
+
+    return all_audio
+
+
+# ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
 @app.route("/", methods=["GET", "POST"])
@@ -1964,11 +2189,12 @@ def train():
 
 @app.route("/api/search", methods=["POST"])
 def api_search():
-    """JSON endpoint for the training page to search images."""
+    """JSON endpoint for the training page to search images or audio."""
     data = request.get_json(silent=True) or {}
     description = data.get("description", "").strip()
-    num_images = int(data.get("num_images", 20))
-    num_images = max(5, min(num_images, 50))
+    num_items = int(data.get("num_images", 20))
+    num_items = max(5, min(num_items, 50))
+    media_type = data.get("type", "image")
 
     if not description:
         return jsonify({"error": "Description is required"}), 400
@@ -1977,12 +2203,32 @@ def api_search():
         return jsonify({"error": "AI service not configured"}), 500
 
     try:
-        ai_result = ai_generate_queries(description, num_images)
+        ai_result = ai_generate_queries(description, num_items)
         queries = ai_result.get("queries", [description])
-        images = collect_images(queries, num_images)
-        return jsonify({"images": images, "queries": queries})
+        if media_type == "audio":
+            items = collect_audio(queries, num_items)
+        else:
+            items = collect_images(queries, num_items)
+        return jsonify({"images": items, "queries": queries})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/proxy-audio")
+def proxy_audio():
+    """Proxy external audio to avoid CORS issues for Web Audio API."""
+    url = request.args.get("url", "")
+    if not url.startswith("https://"):
+        return "Invalid URL", 400
+    try:
+        r = http_requests.get(url, timeout=30, headers={"User-Agent": "CuratorAI/1.0"})
+        r.raise_for_status()
+        ct = r.headers.get("Content-Type", "audio/mpeg")
+        resp = Response(r.content, content_type=ct)
+        resp.headers["Cache-Control"] = "public, max-age=86400"
+        return resp
+    except Exception:
+        return "Audio not found", 404
 
 
 @app.route("/api/proxy-image")
