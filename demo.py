@@ -338,6 +338,18 @@ PAGE = """
     }
     .btn-kofi:active { transform: translateY(0); }
 
+    .github-corner {
+      position: fixed; top: 72px; right: 20px; z-index: 100;
+    }
+    .btn-github {
+      display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px;
+      border-radius: 12px; background: rgba(36, 41, 47, 0.95); color: #fff;
+      font-size: 0.85rem; font-weight: 600; font-family: inherit; text-decoration: none;
+      border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+      transition: transform 0.15s, box-shadow 0.2s;
+    }
+    .btn-github:hover { transform: translateY(-1px); color: #fff; box-shadow: 0 4px 16px rgba(0,0,0,0.45); }
+
     .nav {
       display: flex;
       justify-content: center;
@@ -486,6 +498,12 @@ PAGE = """
         <path d="M23.881 8.948c-.773-4.085-4.859-4.593-4.859-4.593H.723c-.604 0-.679.798-.679.798s-.082 7.324-.022 11.822c.164 2.424 2.586 2.672 2.586 2.672s8.267-.023 11.966-.049c2.438-.426 2.683-2.566 2.658-3.734 4.352.24 7.422-2.831 6.649-6.916zm-11.062 3.511c-1.246 1.453-4.011 3.976-4.011 3.976s-.121.119-.31.023c-.076-.057-.108-.09-.108-.09-.443-.441-3.368-3.049-4.034-3.954-.709-.965-1.041-2.7-.091-3.71.951-1.01 3.005-1.086 4.363.407 0 0 1.565-1.782 3.468-.963 1.904.82 1.832 3.011.723 4.311zm6.173.478c-.928.116-1.682.028-1.682.028V7.284h1.77s1.971.551 1.971 2.638c0 1.913-.985 2.667-2.059 3.015z"/>
       </svg>
       Support
+    </a>
+  </div>
+  <div class="github-corner">
+    <a href="https://github.com/coolcoderme" target="_blank" rel="noopener" class="btn-github" title="GitHub">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+      GitHub
     </a>
   </div>
   <div class="container">
@@ -843,6 +861,17 @@ ABOUT_PAGE = """
       box-shadow: 0 4px 16px rgba(255, 94, 91, 0.45);
     }
     .btn-kofi:active { transform: translateY(0); }
+    .github-corner {
+      position: fixed; top: 72px; right: 20px; z-index: 100;
+    }
+    .btn-github {
+      display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px;
+      border-radius: 12px; background: rgba(36, 41, 47, 0.95); color: #fff;
+      font-size: 0.85rem; font-weight: 600; font-family: inherit; text-decoration: none;
+      border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+      transition: transform 0.15s, box-shadow 0.2s;
+    }
+    .btn-github:hover { transform: translateY(-1px); color: #fff; box-shadow: 0 4px 16px rgba(0,0,0,0.45); }
     .footer {
       text-align: center;
       margin-top: 32px;
@@ -866,6 +895,12 @@ ABOUT_PAGE = """
         <path d="M23.881 8.948c-.773-4.085-4.859-4.593-4.859-4.593H.723c-.604 0-.679.798-.679.798s-.082 7.324-.022 11.822c.164 2.424 2.586 2.672 2.586 2.672s8.267-.023 11.966-.049c2.438-.426 2.683-2.566 2.658-3.734 4.352.24 7.422-2.831 6.649-6.916zm-11.062 3.511c-1.246 1.453-4.011 3.976-4.011 3.976s-.121.119-.31.023c-.076-.057-.108-.09-.108-.09-.443-.441-3.368-3.049-4.034-3.954-.709-.965-1.041-2.7-.091-3.71.951-1.01 3.005-1.086 4.363.407 0 0 1.565-1.782 3.468-.963 1.904.82 1.832 3.011.723 4.311zm6.173.478c-.928.116-1.682.028-1.682.028V7.284h1.77s1.971.551 1.971 2.638c0 1.913-.985 2.667-2.059 3.015z"/>
       </svg>
       Support
+    </a>
+  </div>
+  <div class="github-corner">
+    <a href="https://github.com/coolcoderme" target="_blank" rel="noopener" class="btn-github" title="GitHub">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+      GitHub
     </a>
   </div>
 
@@ -1085,6 +1120,14 @@ TRAIN_PAGE = """
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }
     .btn-kofi:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(255,94,91,0.45); }
+    .github-corner { position: fixed; top: 72px; right: 20px; z-index: 100; }
+    .btn-github {
+      display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 12px;
+      background: rgba(36, 41, 47, 0.95); color: #fff; font-size: 0.85rem; font-weight: 600;
+      font-family: inherit; text-decoration: none; border: 1px solid rgba(255,255,255,0.12);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.35); transition: transform 0.15s, box-shadow 0.2s;
+    }
+    .btn-github:hover { transform: translateY(-1px); color: #fff; box-shadow: 0 4px 16px rgba(0,0,0,0.45); }
     .footer { text-align: center; margin-top: 16px; font-size: 0.75rem; color: #4b5563; }
     .audio-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px;
       background: rgba(255,255,255,0.05); border-radius: 10px; margin-bottom: 6px; }
@@ -1115,6 +1158,12 @@ TRAIN_PAGE = """
     <a href="https://ko-fi.com/coolcoderme" target="_blank" rel="noopener" class="btn-kofi">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M23.881 8.948c-.773-4.085-4.859-4.593-4.859-4.593H.723c-.604 0-.679.798-.679.798s-.082 7.324-.022 11.822c.164 2.424 2.586 2.672 2.586 2.672s8.267-.023 11.966-.049c2.438-.426 2.683-2.566 2.658-3.734 4.352.24 7.422-2.831 6.649-6.916zm-11.062 3.511c-1.246 1.453-4.011 3.976-4.011 3.976s-.121.119-.31.023c-.076-.057-.108-.09-.108-.09-.443-.441-3.368-3.049-4.034-3.954-.709-.965-1.041-2.7-.091-3.71.951-1.01 3.005-1.086 4.363.407 0 0 1.565-1.782 3.468-.963 1.904.82 1.832 3.011.723 4.311zm6.173.478c-.928.116-1.682.028-1.682.028V7.284h1.77s1.971.551 1.971 2.638c0 1.913-.985 2.667-2.059 3.015z"/></svg>
       Support
+    </a>
+  </div>
+  <div class="github-corner">
+    <a href="https://github.com/coolcoderme" target="_blank" rel="noopener" class="btn-github" title="GitHub">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+      GitHub
     </a>
   </div>
 
@@ -1159,6 +1208,20 @@ TRAIN_PAGE = """
         </div>
         <button class="btn btn-primary" onclick="searchForClass()" id="searchBtn">Search</button>
         <div id="searchStatus" class="status-msg"></div>
+      </div>
+
+      <div class="card">
+        <h2>Or use your own files</h2>
+        <p class="status-msg">Upload images or audio from your computer. Give them a class label, then train the same way as CuratorAI-found media. Don&rsquo;t mix image and audio in one dataset.</p>
+        <div class="form-row">
+          <label for="uploadClassName">Class name for these files</label>
+          <input type="text" id="uploadClassName" placeholder="e.g. my_birds" />
+        </div>
+        <div class="form-row">
+          <label for="uploadFiles">Choose files</label>
+          <input type="file" id="uploadFiles" multiple accept="image/*,audio/*" />
+        </div>
+        <button type="button" class="btn btn-primary" onclick="addUploadedFilesToDataset()">Add to dataset</button>
       </div>
 
       <div id="searchResultsCard" class="card hidden">
@@ -1320,6 +1383,13 @@ let trainedModel = null;
 let mobilenetModel = null;
 const classNames = [];
 
+function isTrainAudioItem(it) {
+  if (!it) return false;
+  if (it.source === 'openverse' || it.source === 'freesound') return true;
+  if (it.source === 'upload' && it.mediaType === 'audio') return true;
+  return false;
+}
+
 // =====================================================================
 // DATASET BUILDER
 // =====================================================================
@@ -1403,8 +1473,16 @@ function addToDataset() {
   const name = document.getElementById('className').value.trim();
   if (!name) return;
   const selected = searchResults.filter(img => img.selected);
-  if (!selected.length) { alert('Select at least one image'); return; }
+  if (!selected.length) { alert('Select at least one item'); return; }
+  const incomingAud = mediaType === 'audio';
   if (!dataset[name]) dataset[name] = [];
+  if (dataset[name].length) {
+    const ex = isTrainAudioItem(dataset[name][0]);
+    if (ex !== incomingAud) {
+      alert('Class "' + name + '" already has ' + (ex ? 'audio' : 'images') + '. Use another class name or remove that class first.');
+      return;
+    }
+  }
   selected.forEach(img => {
     if (!dataset[name].find(d => d.url === img.url)) dataset[name].push(img);
   });
@@ -1412,6 +1490,60 @@ function addToDataset() {
   document.getElementById('searchResultsCard').classList.add('hidden');
   document.getElementById('className').value = '';
   document.getElementById('classDesc').value = '';
+  renderDataset();
+}
+
+function addUploadedFilesToDataset() {
+  const name = document.getElementById('uploadClassName').value.trim();
+  if (!name) { alert('Enter a class name for your uploads.'); return; }
+  const input = document.getElementById('uploadFiles');
+  const files = input.files;
+  if (!files || !files.length) { alert('Choose at least one image or audio file.'); return; }
+  let batchAud = null;
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    const mime = f.type || '';
+    const isAud = mime.startsWith('audio/');
+    const isImg = mime.startsWith('image/');
+    if (!isAud && !isImg) { continue; }
+    if (batchAud === null) batchAud = isAud;
+    else if (batchAud !== isAud) {
+      alert('In one upload, use only images or only audio — not both.');
+      return;
+    }
+  }
+  if (batchAud === null) { alert('No supported files (use images or audio).'); return; }
+  if (!dataset[name]) dataset[name] = [];
+  if (dataset[name].length) {
+    const ex = isTrainAudioItem(dataset[name][0]);
+    if (ex !== batchAud) {
+      alert('Class "' + name + '" already has ' + (ex ? 'audio' : 'images') + '. Pick another class name or remove that class first.');
+      return;
+    }
+  }
+  let added = 0;
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    const mime = f.type || '';
+    const isAud = mime.startsWith('audio/');
+    const isImg = mime.startsWith('image/');
+    if (!isAud && !isImg) { continue; }
+    const url = URL.createObjectURL(f);
+    const item = {
+      url: url,
+      thumb: url,
+      title: f.name,
+      source: 'upload',
+      mediaType: isAud ? 'audio' : 'image',
+      mime: mime,
+      originalName: f.name
+    };
+    dataset[name].push(item);
+    added++;
+  }
+  if (!added) { alert('No supported files (use images or audio).'); return; }
+  document.getElementById('uploadClassName').value = '';
+  input.value = '';
   renderDataset();
 }
 
@@ -1432,19 +1564,22 @@ function renderDataset() {
     bucket.className = 'class-bucket';
     const hdr = document.createElement('div');
     hdr.className = 'class-header';
-    hdr.innerHTML = '<h3>' + cls + '</h3><span>' + dataset[cls].length + ' images</span>' +
+    const first = dataset[cls][0];
+    const countLabel = first && isTrainAudioItem(first) ? ' clips' : ' images';
+    hdr.innerHTML = '<h3>' + cls + '</h3><span>' + dataset[cls].length + countLabel + '</span>' +
       '<button class="btn btn-danger" onclick="removeClass(\\''+cls.replace(/'/g,"\\\\'")+
       '\\')">Remove class</button>';
     bucket.appendChild(hdr);
     const grid = document.createElement('div');
-    grid.className = dataset[cls][0] && dataset[cls][0].source ? '' : 'thumb-grid';
+    grid.className = dataset[cls][0] && isTrainAudioItem(dataset[cls][0]) ? '' : 'thumb-grid';
     dataset[cls].forEach((img, i) => {
       const item = document.createElement('div');
-      const isAudio = img.source === 'openverse' || img.source === 'freesound';
+      const isAudio = isTrainAudioItem(img);
       if (isAudio) {
         item.className = 'audio-thumb';
+        const audSrc = img.url.startsWith('blob:') ? img.url : ('/api/proxy-audio?url='+encodeURIComponent(img.url));
         item.innerHTML = '<span>'+(img.title||'Audio').substring(0,30)+'</span>' +
-          '<audio controls preload="none" src="/api/proxy-audio?url='+encodeURIComponent(img.url)+'"></audio>' +
+          '<audio controls preload="none" src="'+audSrc+'"></audio>' +
           '<button class="btn btn-danger" onclick="removeImage(\\''+cls.replace(/'/g,"\\\\'")+
           '\\','+i+')">&times;</button>';
       } else {
@@ -1461,11 +1596,19 @@ function renderDataset() {
 }
 
 function removeImage(cls, idx) {
+  const arr = dataset[cls];
+  if (arr && arr[idx] && arr[idx].url && arr[idx].url.startsWith('blob:'))
+    URL.revokeObjectURL(arr[idx].url);
   dataset[cls].splice(idx, 1);
   if (!dataset[cls].length) delete dataset[cls];
   renderDataset();
 }
 function removeClass(cls) {
+  if (dataset[cls]) {
+    dataset[cls].forEach(function(it) {
+      if (it.url && it.url.startsWith('blob:')) URL.revokeObjectURL(it.url);
+    });
+  }
   delete dataset[cls];
   renderDataset();
 }
@@ -1505,17 +1648,23 @@ async function trainModel() {
   const keys = Object.keys(dataset);
   if (keys.length < 2) { alert('Need at least 2 classes'); return; }
 
+  let hasImg = false, hasAud = false;
+  keys.forEach(function(k) {
+    dataset[k].forEach(function(it) {
+      if (isTrainAudioItem(it)) hasAud = true; else hasImg = true;
+    });
+  });
+  if (hasImg && hasAud) {
+    alert('This dataset mixes images and audio. Use only images or only audio in one training run.');
+    return;
+  }
+
   const btn = document.getElementById('trainBtn');
   btn.disabled = true;
   document.getElementById('trainingProgress').classList.remove('hidden');
   document.getElementById('downloadSection').classList.add('hidden');
   document.getElementById('quickTestSection').classList.add('hidden');
-  trainingWasAudio = false;
-  const fk = keys[0];
-  if (fk && dataset[fk][0]) {
-    const it = dataset[fk][0];
-    trainingWasAudio = (it.source === 'openverse' || it.source === 'freesound');
-  }
+  trainingWasAudio = hasAud;
   const log = document.getElementById('trainLog');
   log.innerHTML = '';
   function addLog(msg) { log.innerHTML += msg + '\\n'; log.scrollTop = log.scrollHeight; }
@@ -1544,7 +1693,7 @@ async function trainModel() {
       const cls = keys[ci];
       for (const item of dataset[cls]) {
         try {
-          const isAudio = item.source === 'openverse' || item.source === 'freesound';
+          const isAudio = isTrainAudioItem(item);
           let imgEl;
           if (isAudio) {
             addLog('  Converting audio to spectrogram...');
@@ -1616,13 +1765,20 @@ function loadImageEl(url) {
     img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error('Failed to load image'));
-    img.src = '/api/proxy-image?url=' + encodeURIComponent(url);
+    if (url.startsWith('blob:')) img.src = url;
+    else img.src = '/api/proxy-image?url=' + encodeURIComponent(url);
   });
 }
 
 async function audioToSpectrogram(url) {
-  const resp = await fetch('/api/proxy-audio?url=' + encodeURIComponent(url));
-  const arrayBuf = await resp.arrayBuffer();
+  let arrayBuf;
+  if (url.startsWith('blob:')) {
+    const resp = await fetch(url);
+    arrayBuf = await resp.arrayBuffer();
+  } else {
+    const resp = await fetch('/api/proxy-audio?url=' + encodeURIComponent(url));
+    arrayBuf = await resp.arrayBuffer();
+  }
   return await audioBufferToSpectrogram(arrayBuf);
 }
 
@@ -1681,6 +1837,11 @@ async function audioBufferToSpectrogram(arrayBuf) {
   return specCanvas;
 }
 
+function extFromOriginalName(name) {
+  const m = (name || '').toLowerCase().match(/([.][a-z0-9]+)$/);
+  return m ? m[1] : '';
+}
+
 async function downloadDatasetZip() {
   const keys = Object.keys(dataset);
   if (!keys.length) { alert('Add at least one class first.'); return; }
@@ -1690,20 +1851,28 @@ async function downloadDatasetZip() {
     const safeDir = cls.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 40) || 'class';
     for (let i = 0; i < dataset[cls].length; i++) {
       const item = dataset[cls][i];
-      const isAudio = item.source === 'openverse' || item.source === 'freesound';
+      const isAudio = isTrainAudioItem(item);
       try {
-        const proxy = isAudio
-          ? '/api/proxy-audio?url=' + encodeURIComponent(item.url)
-          : '/api/proxy-image?url=' + encodeURIComponent(item.url);
-        const resp = await fetch(proxy);
-        if (!resp.ok) continue;
-        const blob = await resp.blob();
-        let ext = '.bin';
-        const u = (item.url || '').toLowerCase();
-        if (isAudio) {
-          ext = u.includes('.mp3') ? '.mp3' : u.includes('.ogg') ? '.ogg' : u.includes('.wav') ? '.wav' : '.mp3';
+        let blob;
+        if (item.url.startsWith('blob:')) {
+          const resp = await fetch(item.url);
+          blob = await resp.blob();
         } else {
-          ext = u.includes('.png') ? '.png' : u.includes('.gif') ? '.gif' : u.includes('.webp') ? '.webp' : '.jpg';
+          const proxy = isAudio
+            ? '/api/proxy-audio?url=' + encodeURIComponent(item.url)
+            : '/api/proxy-image?url=' + encodeURIComponent(item.url);
+          const resp = await fetch(proxy);
+          if (!resp.ok) continue;
+          blob = await resp.blob();
+        }
+        let ext = extFromOriginalName(item.originalName);
+        const u = (item.url || '').toLowerCase();
+        if (!ext) {
+          if (isAudio) {
+            ext = u.includes('.mp3') ? '.mp3' : u.includes('.ogg') ? '.ogg' : u.includes('.wav') ? '.wav' : '.mp3';
+          } else {
+            ext = u.includes('.png') ? '.png' : u.includes('.gif') ? '.gif' : u.includes('.webp') ? '.webp' : '.jpg';
+          }
         }
         zip.file(safeDir + '/' + safeDir + '_' + String(i+1).padStart(3,'0') + ext, blob);
         n++;
@@ -1826,9 +1995,15 @@ function startAnnotation() {
   allImages = [];
   Object.keys(dataset).forEach(cls => {
     dataset[cls].forEach(img => {
+      if (isTrainAudioItem(img)) return;
       if (!allImages.find(a => a.url === img.url)) allImages.push(img);
     });
   });
+  if (!allImages.length) {
+    alert('Object detection needs image files. Add images from search or upload images — not audio-only.');
+    document.getElementById('annotateView').dataset.show = '';
+    return;
+  }
   annotIdx = 0;
   setStep(3);
   loadAnnotImage();
@@ -1853,7 +2028,9 @@ function loadAnnotImage() {
     drawCanvas();
     renderBoxList();
   };
-  img.src = '/api/proxy-image?url=' + encodeURIComponent(allImages[annotIdx].url);
+  const u = allImages[annotIdx].url;
+  if (u.startsWith('blob:')) img.src = u;
+  else img.src = '/api/proxy-image?url=' + encodeURIComponent(u);
 }
 
 function drawCanvas() {
@@ -2071,8 +2248,14 @@ async function exportYOLO() {
     const fname = 'image_' + String(imgIndex).padStart(4,'0');
 
     try {
-      const resp = await fetch('/api/proxy-image?url=' + encodeURIComponent(imgData.url));
-      const blob = await resp.blob();
+      let blob;
+      if (imgData.url.startsWith('blob:')) {
+        const resp = await fetch(imgData.url);
+        blob = await resp.blob();
+      } else {
+        const resp = await fetch('/api/proxy-image?url=' + encodeURIComponent(imgData.url));
+        blob = await resp.blob();
+      }
       const ext = blob.type.includes('png') ? '.png' : '.jpg';
       zip.file('images/' + fname + ext, blob);
     } catch(e) { imgIndex++; continue; }
