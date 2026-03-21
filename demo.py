@@ -1395,9 +1395,10 @@ function isTrainAudioItem(it) {
 // =====================================================================
 async function searchForClass() {
   const name = document.getElementById('className').value.trim();
-  const desc = document.getElementById('classDesc').value.trim() || name;
+  const desc = document.getElementById('classDesc').value.trim();
   const num = parseInt(document.getElementById('classNum').value) || 20;
   if (!name) { alert('Enter a class name'); return; }
+  if (!desc) { alert('Enter a description'); return; }
 
   const btn = document.getElementById('searchBtn');
   btn.disabled = true;
